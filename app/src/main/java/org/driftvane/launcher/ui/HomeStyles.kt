@@ -110,7 +110,7 @@ private fun rememberLive(): Live {
 @Composable
 private fun ClockCard(model: LauncherModel, live: Live, modifier: Modifier, big: Boolean = true) {
     Column(
-        modifier.clip(RoundedCornerShape(26.dp)).background(model.accent).padding(16.dp),
+        modifier.clip(RoundedCornerShape(26.dp)).background(if (model.stackColorful) Color(0xFF6C5CE7) else model.accent).padding(16.dp),
         verticalArrangement = Arrangement.Bottom,
     ) {
         Text(live.time, color = Color.White, fontSize = if (big) 52.sp else 34.sp, lineHeight = if (big) 54.sp else 36.sp,
@@ -126,7 +126,7 @@ private fun MusicCard(model: LauncherModel, live: Live, modifier: Modifier, soli
     val art = np?.art
     val artImage = remember(art) { art?.asImageBitmap() }
     Box(
-        modifier.clip(RoundedCornerShape(26.dp)).background(if (solid) model.accent else Card)
+        modifier.clip(RoundedCornerShape(26.dp)).background(if (model.stackColorful) Color(0xFFE84393) else if (solid) model.accent else Card)
             .clickable(remember { MutableInteractionSource() }, indication = null) {
                 if (np != null) openPlayer(context, np) else if (!hasMediaAccess(context)) openMediaAccessSettings(context)
             }
@@ -155,9 +155,9 @@ private fun MusicCard(model: LauncherModel, live: Live, modifier: Modifier, soli
 }
 
 @Composable
-private fun BatteryCard(live: Live, modifier: Modifier) {
+private fun BatteryCard(model: LauncherModel, live: Live, modifier: Modifier) {
     Column(
-        modifier.clip(RoundedCornerShape(26.dp)).background(Card).padding(16.dp),
+        modifier.clip(RoundedCornerShape(26.dp)).background(if (model.stackColorful) Color(0xFF00B894) else Card).padding(16.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(if (live.charging) "Charging" else "Battery", color = Soft, fontSize = 13.sp, fontWeight = FontWeight.W500)
@@ -206,7 +206,7 @@ fun SplitTop(model: LauncherModel) {
             when (p) {
                 0 -> ClockCard(model, live, m)
                 1 -> MusicCard(model, live, m, solid = true)
-                else -> BatteryCard(live, m)
+                else -> BatteryCard(model, live, m)
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.Center) {
@@ -265,7 +265,7 @@ fun StackTop(model: LauncherModel) {
                 when (card) {
                     0 -> ClockCard(model, live, m)
                     1 -> MusicCard(model, live, m, solid = true)
-                    else -> BatteryCard(live, m)
+                    else -> BatteryCard(model, live, m)
                 }
             }
         }
@@ -285,7 +285,7 @@ fun ColumnsPage(model: LauncherModel, items: List<String>, handler: ItemHandler)
         Column(Modifier.weight(1.05f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ClockCard(model, live, Modifier.fillMaxWidth().weight(1.2f), big = false)
             MusicCard(model, live, Modifier.fillMaxWidth().weight(1f))
-            BatteryCard(live, Modifier.fillMaxWidth().weight(1f))
+            BatteryCard(model, live, Modifier.fillMaxWidth().weight(1f))
         }
         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             items.filter { it != EMPTY && (model.apps[it] != null || model.folders[it] != null) }.forEach { itemKey ->
@@ -308,6 +308,23 @@ fun ColumnsPage(model: LauncherModel, items: List<String>, handler: ItemHandler)
                 }
               }
             }
+        }
+    }
+}
+
+/** DriftVaneOS Stock style: a simple "At A Glance" header; the grid below carries app names. */
+@Composable
+fun StockTop(model: LauncherModel) {
+    Box(Modifier.fillMaxSize().padding(start = 20.dp, top = 12.dp)) {
+        Column {
+            Text(
+                SimpleDateFormat("EEEE", Locale.getDefault()).format(Date()),
+                color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.W600,
+            )
+            Text(
+                SimpleDateFormat("MMMM d", Locale.getDefault()).format(Date()),
+                color = Soft, fontSize = 14.sp,
+            )
         }
     }
 }

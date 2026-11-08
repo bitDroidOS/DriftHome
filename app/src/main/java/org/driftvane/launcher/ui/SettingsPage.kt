@@ -152,6 +152,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                         item {
                             Group(title = "Labels") {
                                 ToggleRow("Show app names", model.showLabels, model.accent) { model.changeLabels(it) }
+                                ToggleRow("Colorful stack cards", model.stackColorful, model.accent) { model.changeStackColorful(it) }
                                 Seg(listOf("Small" to 11f, "Medium" to 12f, "Large" to 13.5f), model.labelSize, model.accent) { model.changeLabelSize(it) }
                             }
                         }
@@ -373,6 +374,8 @@ private fun styleHint(id: String) = when (id) {
     "frame" -> "Your wallpaper in a window with the clock"
     "split" -> "Swipeable cards on top, apps below"
     "stack" -> "A deck of cards you flick through"
+    "stock" -> "Classic grid with app names, like stock"
+    "dashboard" -> "Big clock with glance cards"
     else -> "Info on the left, apps on the right"
 }
 

@@ -138,6 +138,8 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     var accentIndex by mutableStateOf(prefs.getInt("accent", 0))
         private set
     var showLabels by mutableStateOf(prefs.getBoolean("labels", false))
+    /** Stack style: give each card its own color instead of all-blue. */
+    var stackColorful by mutableStateOf(prefs.getBoolean("stack_colorful", false))
         private set
     var iconScale by mutableStateOf(prefs.getFloat("icon_scale", 1.04f))
         private set
@@ -197,6 +199,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     private val glanceRows: Int
         get() = when (topStyle) {
             "split", "stack" -> 2
+            "stock" -> 1
             "columns" -> 0
             else -> 3
         }
@@ -213,7 +216,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
 
     /** Home styles offered in setup (id to name). */
-    val homeStyles = listOf("stack" to "Stack", "frame" to "Frame", "split" to "Split", "columns" to "Columns")
+    val homeStyles = listOf("stack" to "Stack", "stock" to "Stock", "dashboard" to "Dashboard", "frame" to "Frame", "split" to "Split", "columns" to "Columns")
 
     /** The style Alex recommends (shown first in setup with a "Dev's Fav" tag). */
     val devFavStyle = "stack"
@@ -227,19 +230,19 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun applyHomeStyle(style: String) {
         prefs.edit().putString("top_style", style).putBoolean("glance", true)
             .putString("icon_shape", "rounded").putString("icon_theme", IconTheme.ORIGINAL)
-            .putString("dock_style", "clear").putBoolean("labels", false).putBoolean("grid_panel", false)
-            .putBoolean("search_pill", true).putInt("columns", 4).putFloat("icon_scale", 1.26f)
+            .putString("dock_style", "clear").putBoolean("labels", style == "stock").putBoolean("grid_panel", false)
+            .putBoolean("search_pill", true).putInt("columns", if (style == "stock") 5 else 4).putFloat("icon_scale", 1.26f)
             .putString("library", LibraryStyle.FOLDERS).apply()
         topStyle = style
         showGlance = true
         iconShape = "rounded"
         dockStyle = "clear"
-        showLabels = false
+        showLabels = style == "stock"
         gridPanel = false
         searchPill = true
         iconScale = 1.26f
         libraryStyle = LibraryStyle.FOLDERS
-        columns = 4
+        columns = if (style == "stock") 5 else 4
         iconTheme = IconTheme.ORIGINAL
         reload()
         reflowAll()
@@ -262,6 +265,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         if (iconTheme == IconTheme.THEMED || iconTheme == IconTheme.LIGHT || iconTheme == IconTheme.OUTLINE) reload()
     }
     fun changeLabels(v: Boolean) { showLabels = v; prefs.edit().putBoolean("labels", v).apply() }
+    fun changeStackColorful(v: Boolean) { stackColorful = v; prefs.edit().putBoolean("stack_colorful", v).apply() }
     fun changeIconScale(v: Float) { iconScale = v; prefs.edit().putFloat("icon_scale", v).apply() }
     fun changeDots(v: Boolean) { showDots = v; prefs.edit().putBoolean("dots", v).apply() }
     fun changeDock(v: Boolean) { showDock = v; prefs.edit().putBoolean("dock", v).apply() }

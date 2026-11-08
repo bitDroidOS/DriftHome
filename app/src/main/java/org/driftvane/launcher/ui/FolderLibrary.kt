@@ -2,6 +2,7 @@ package org.driftvane.launcher.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -119,6 +120,7 @@ fun FolderLibrary(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
                 .height(52.dp).clip(RoundedCornerShape(26.dp)).background(TabBg)
+                .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(26.dp))
                 .clickable { onSearch() }.padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

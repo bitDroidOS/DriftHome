@@ -116,6 +116,7 @@ fun HomePage(
                 when (model.topStyle) {
                     "bold" -> BoldClock(model, Modifier.align(Alignment.TopStart))
                     "dashboard" -> DashboardTop(model)
+                    "stock" -> StockTop(model)
                     "frame" -> FrameTop(model) { model.frameHole = it }
                     "split" -> SplitTop(model)
                     else -> StackTop(model)
