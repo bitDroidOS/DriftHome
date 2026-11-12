@@ -133,9 +133,24 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
                 .putString("library", LibraryStyle.CARDS)
                 .putBoolean("pending_reflow", true).apply()
         }
+        if (prefs.getInt("look", 0) in 10 until 12) {
+            // 0.11.1: for Morph / Orbit: Category cards App Library, swipe down for notifications,
+            // XL icons (the battery tile moves under the top tiles once the layout loads)
+            val st = prefs.getString("top_style", "")
+            prefs.edit().putInt("look", 12)
+                .apply {
+                    if (st == "morph" || st == "orbit") {
+                        putString("library", LibraryStyle.CARDS)
+                        putString("swipe_down", SwipeDown.NOTIFICATIONS)
+                        putFloat("icon_scale", 1.26f)
+                        putBoolean("move_battery_tile", true)
+                    }
+                }
+                .apply()
+        }
         if (prefs.getInt("look", 0) < 10) {
             // 0.11: Morph is the new default. Run the (new) setup once so everyone picks Morph or Orbit.
-            prefs.edit().putInt("look", 10).putBoolean("setup_done", false).apply()
+            prefs.edit().putInt("look", 12).putBoolean("setup_done", false).apply()
         }
     }
 
@@ -175,7 +190,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
     var libraryStyle by mutableStateOf(prefs.getString("library", LibraryStyle.CARDS)!!)
         private set
-    var swipeDown by mutableStateOf(prefs.getString("swipe_down", SwipeDown.SEARCH)!!)
+    var swipeDown by mutableStateOf(prefs.getString("swipe_down", SwipeDown.NOTIFICATIONS)!!)
         private set
     var glassStrength by mutableStateOf(prefs.getFloat("glass", 0.72f))
         private set
@@ -266,8 +281,9 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         prefs.edit().putString("top_style", style).putBoolean("glance", true)
             .putString("icon_shape", shape).putString("icon_theme", IconTheme.ORIGINAL)
             .putString("dock_style", "clear").putBoolean("labels", false).putBoolean("grid_panel", false)
-            .putBoolean("search_pill", true).putBoolean("dots", true).putInt("columns", 4).putFloat("icon_scale", 1.12f)
-            .putString("library", LibraryStyle.DRAWER).apply()
+            .putBoolean("search_pill", true).putBoolean("dots", true).putInt("columns", 4).putFloat("icon_scale", 1.26f)
+            .putString("swipe_down", SwipeDown.NOTIFICATIONS)
+            .putString("library", LibraryStyle.CARDS).apply()
         topStyle = style
         showGlance = true
         iconShape = shape
@@ -276,20 +292,21 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         gridPanel = false
         searchPill = true
         showDots = true
-        iconScale = 1.12f
-        libraryStyle = LibraryStyle.DRAWER
+        iconScale = 1.26f
+        swipeDown = SwipeDown.NOTIFICATIONS
+        libraryStyle = LibraryStyle.CARDS
         columns = 4
         iconTheme = IconTheme.ORIGINAL
         // built-in tiles: Morph starts with them on page one, Orbit has its own first page
         for (i in pages.indices) pages[i] = pages[i].copy(widgets = pages[i].widgets.filter { it.id >= 0 })
         if (style == "morph") {
             ensurePage(0)
-            val r = iconRows(0)
             val tiles = buildList {
                 add(WidgetItem(DT_MUSIC, 0, 0, 2, 2))
                 add(WidgetItem(DT_CLOCK, 2, 0, 2, 1))
                 add(WidgetItem(DT_DATE, 2, 1, 2, 1))
-                if (r >= 5) add(WidgetItem(DT_BATTERY, 0, r - 1, 4, 1))
+                // battery right under the top tiles, above the apps
+                if (iconRows(0) >= 4) add(WidgetItem(DT_BATTERY, 0, 2, 4, 1))
             }
             pages[0] = pages[0].copy(widgets = tiles + pages[0].widgets)
         }
@@ -458,6 +475,15 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             apps.clear()
             list.forEach { apps[it.key] = it }
             syncLayout()
+            if (prefs.getBoolean("move_battery_tile", false)) {
+                // 0.11.1: battery tile goes right under the top tiles (if that spot is free)
+                prefs.edit().remove("move_battery_tile").apply()
+                val bat = findWidget(DT_BATTERY)
+                if (bat != null && bat.first == 0) {
+                    val w = pages[0].widgets[bat.second]
+                    if (w.row != 2) setWidgetRect(DT_BATTERY, 0, 2, w.spanX.coerceAtMost(columns), 1)
+                }
+            }
             if (prefs.getBoolean("pending_reflow", false)) {
                 prefs.edit().remove("pending_reflow").apply()
                 reflowAll()
@@ -510,12 +536,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             IconTheme.LIGHT -> { c.drawColor(0xFFF3F0F6.toInt()); mono(darken(accent)) }
             IconTheme.MONO -> { c.drawColor(0xFF19181D.toInt()); mono(0xFFF2F2F2.toInt()) }
             IconTheme.OUTLINE -> { c.drawColor(deep(accent)); mono(lighten(accent)) }
-            IconTheme.GLASS -> {
-                val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-                paint.shader = LinearGradient(0f, 0f, 0f, s.toFloat(), 0x66FFFFFF, 0x22FFFFFF, Shader.TileMode.CLAMP)
-                c.drawRect(0f, 0f, s.toFloat(), s.toFloat(), paint)
-                if (d is AdaptiveIconDrawable) d.foreground?.let { full(it) } else padded(d)
-            }
+            IconTheme.GLASS -> glassTile(c, d, s)
             else -> {
                 if (d is AdaptiveIconDrawable) {
                     d.background?.let { full(it) }
@@ -527,6 +548,65 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             }
         }
         return bmp
+    }
+
+    /**
+     * Liquid glass tile: frosted gradient, a bright rim at the top, a soft inner edge, and the
+     * app's symbol. Apps with a themed (monochrome) icon get a crisp white symbol; every other
+     * app gets its full icon as a small rounded badge floating on the glass, so nothing comes
+     * out blank and every icon follows the look.
+     */
+    private fun glassTile(c: Canvas, d: Drawable, s: Int) {
+        val f = s.toFloat()
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        // frosted body
+        p.shader = LinearGradient(0f, 0f, f * 0.3f, f, 0x73FFFFFF, 0x1FFFFFFF, Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, f, f, p)
+        // soft accent glow from the bottom
+        p.shader = android.graphics.RadialGradient(f * 0.5f, f * 1.05f, f * 0.75f,
+            (accent.toArgb() and 0x00FFFFFF) or 0x55000000, 0x00000000, Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, f, f, p)
+        // bright rim along the top, fading down
+        p.shader = LinearGradient(0f, 0f, 0f, f * 0.22f, 0x80FFFFFF.toInt(), 0x00FFFFFF, Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, f, f * 0.22f, p)
+        // inner edge
+        p.shader = null
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = f * 0.035f
+        p.color = 0x59FFFFFF
+        c.drawRect(p.strokeWidth / 2, p.strokeWidth / 2, f - p.strokeWidth / 2, f - p.strokeWidth / 2, p)
+        p.style = Paint.Style.FILL
+        val mono = (d as? AdaptiveIconDrawable)?.monochrome
+        if (mono != null) {
+            // white symbol with a soft shadow so it reads on any wallpaper
+            val inset = s / 4
+            val sh = mono.constantState?.newDrawable()?.mutate() ?: mono.mutate()
+            sh.setTint(0x40000000)
+            sh.setBounds(-inset, -inset + s / 48, s + inset, s + inset + s / 48); sh.draw(c)
+            val m = mono.constantState?.newDrawable()?.mutate() ?: mono.mutate()
+            m.setTint(0xF8FFFFFF.toInt())
+            m.setBounds(-inset, -inset, s + inset, s + inset); m.draw(c)
+        } else {
+            // the full icon as a rounded badge on the glass
+            val b = (f * 0.62f).toInt()
+            val badge = Bitmap.createBitmap(b, b, Bitmap.Config.ARGB_8888)
+            val bc = Canvas(badge)
+            if (d is AdaptiveIconDrawable) {
+                val i = b / 4
+                d.background?.let { it.setBounds(-i, -i, b + i, b + i); it.draw(bc) }
+                d.foreground?.let { it.setBounds(-i, -i, b + i, b + i); it.draw(bc) }
+            } else {
+                d.setBounds(0, 0, b, b); d.draw(bc)
+            }
+            val o = (s - b) / 2f
+            // shadow, then the badge clipped to a rounded square
+            p.color = 0x33000000
+            c.drawRoundRect(o, o + f * 0.03f, o + b, o + b + f * 0.03f, b * 0.3f, b * 0.3f, p)
+            p.shader = android.graphics.BitmapShader(badge, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+                .apply { setLocalMatrix(android.graphics.Matrix().apply { setTranslate(o, o) }) }
+            c.drawRoundRect(o, o, o + b, o + b, b * 0.3f, b * 0.3f, p)
+            p.shader = null
+        }
     }
 
     private fun lighten(c: Int): Int {

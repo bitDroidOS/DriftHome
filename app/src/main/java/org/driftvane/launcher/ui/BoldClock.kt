@@ -62,6 +62,29 @@ fun nowPlaying(context: Context): NowPlaying? = runCatching {
     NowPlaying(title, artist, c, art)
 }.getOrNull()
 
+/**
+ * The current player even when it's paused (playing first, then paused), so the Morph music
+ * tile can resume it. [playing] says which.
+ */
+fun mediaNow(context: Context): Pair<NowPlaying, Boolean>? = runCatching {
+    val msm = context.getSystemService(MediaSessionManager::class.java) ?: return null
+    val sessions = msm.getActiveSessions(ComponentName(context, MediaListener::class.java))
+    val c = sessions.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
+        ?: sessions.firstOrNull {
+            val st = it.playbackState?.state
+            (st == PlaybackState.STATE_PAUSED || st == PlaybackState.STATE_BUFFERING) && it.metadata != null
+        }
+        ?: return null
+    val md = c.metadata ?: return null
+    val title = md.getString(MediaMetadata.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() } ?: return null
+    val artist = md.getString(MediaMetadata.METADATA_KEY_ARTIST)
+        ?: md.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST) ?: ""
+    val art = md.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+        ?: md.getBitmap(MediaMetadata.METADATA_KEY_ART)
+        ?: md.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
+    NowPlaying(title, artist, c, art) to (c.playbackState?.state == PlaybackState.STATE_PLAYING)
+}.getOrNull()
+
 /** Whether DriftHome may read media sessions (notification access is on). */
 fun hasMediaAccess(context: Context): Boolean {
     val enabled = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners") ?: return false

@@ -27,6 +27,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -150,8 +151,15 @@ fun DriftTile(model: LauncherModel, w: WidgetItem, modifier: Modifier) {
     val tall = w.spanY >= 2
     when (w.id) {
         DriftTiles.MUSIC -> {
-            val np = live.playing
+            // follows the player even when it's paused, so you can always resume it
+            var tick by remember { mutableStateOf(0) }
+            val media by produceState<Pair<NowPlaying, Boolean>?>(null, tick) {
+                while (true) { value = mediaNow(context); delay(800) }
+            }
+            val np = media?.first
+            val playing = media?.second == true
             val art = remember(np?.art) { np?.art?.asImageBitmap() }
+            val ctl = np?.controller?.transportControls
             Box(
                 modifier.clip(shape)
                     .background(Brush.linearGradient(listOf(Color(0xFF6D47D1), Color(0xFFB83A5E))))
@@ -164,19 +172,7 @@ fun DriftTile(model: LauncherModel, w: WidgetItem, modifier: Modifier) {
                     Image(art, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
                     Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xB3000000)))))
                 }
-                if (np != null) {
-                    Box(
-                        Modifier.align(Alignment.TopEnd).padding(12.dp).size(34.dp).clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.9f))
-                            .clickable { runCatching { np.controller.transportControls.pause() } },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                            repeat(2) { Box(Modifier.width(3.5.dp).height(12.dp).background(Color(0xFF21005D), RoundedCornerShape(2.dp))) }
-                        }
-                    }
-                }
-                Column(Modifier.align(Alignment.BottomStart).padding(14.dp)) {
+                Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(12.dp)) {
                     Text(
                         when { np != null -> np.title; !live.access -> "Tap to show music"; else -> "Nothing playing" },
                         color = Color.White, fontSize = if (tall) 16.sp else 14.sp, fontWeight = FontWeight.W700,
@@ -185,6 +181,23 @@ fun DriftTile(model: LauncherModel, w: WidgetItem, modifier: Modifier) {
                     if (np != null && np.artist.isNotBlank()) {
                         Text(np.artist, color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
+                    if (np != null && tall) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            TileButton(30.dp, false, { runCatching { ctl?.skipToPrevious() }; tick++ }) { skipGlyph(it, false) }
+                            TileButton(38.dp, true, {
+                                runCatching { if (playing) ctl?.pause() else ctl?.play() }
+                                tick++
+                            }) { if (playing) pauseGlyph(it) else playGlyph(it) }
+                            TileButton(30.dp, false, { runCatching { ctl?.skipToNext() }; tick++ }) { skipGlyph(it, true) }
+                        }
+                    }
+                }
+                if (np != null && !tall) {
+                    TileButton(34.dp, true, {
+                        runCatching { if (playing) ctl?.pause() else ctl?.play() }
+                        tick++
+                    }, Modifier.align(Alignment.TopEnd).padding(10.dp)) { if (playing) pauseGlyph(it) else playGlyph(it) }
                 }
             }
         }
@@ -234,6 +247,46 @@ fun DriftTile(model: LauncherModel, w: WidgetItem, modifier: Modifier) {
             }
         }
     }
+}
+
+/** A round play / pause / skip button on the music tile; squishes when pressed. */
+@Composable
+private fun TileButton(
+    size: androidx.compose.ui.unit.Dp,
+    filled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    glyph: androidx.compose.ui.graphics.drawscope.DrawScope.(Color) -> Unit,
+) {
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val sc by animateFloatAsState(if (pressed) 0.84f else 1f, spring(0.45f, 600f), label = "tb")
+    val fg = if (filled) Color(0xFF21005D) else Color.White
+    Box(
+        modifier.size(size).graphicsLayer { scaleX = sc; scaleY = sc }.clip(CircleShape)
+            .background(if (filled) Color.White.copy(alpha = 0.92f) else Color(0x40000000))
+            .clickable(src, indication = null, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { Canvas(Modifier.size(size * 0.36f)) { glyph(fg) } }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.playGlyph(c: Color) {
+    val w = size.width; val h = size.height
+    drawPath(androidx.compose.ui.graphics.Path().apply { moveTo(w * 0.18f, 0f); lineTo(w, h / 2); lineTo(w * 0.18f, h); close() }, c)
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.pauseGlyph(c: Color) {
+    val w = size.width; val h = size.height
+    drawRect(c, Offset(w * 0.12f, 0f), androidx.compose.ui.geometry.Size(w * 0.28f, h))
+    drawRect(c, Offset(w * 0.6f, 0f), androidx.compose.ui.geometry.Size(w * 0.28f, h))
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.skipGlyph(c: Color, forward: Boolean) {
+    val w = size.width; val h = size.height
+    val p = androidx.compose.ui.graphics.Path()
+    if (forward) { p.moveTo(0f, 0f); p.lineTo(w * 0.75f, h / 2); p.lineTo(0f, h); p.close(); drawRect(c, Offset(w * 0.8f, 0f), androidx.compose.ui.geometry.Size(w * 0.2f, h)) }
+    else { p.moveTo(w, 0f); p.lineTo(w * 0.25f, h / 2); p.lineTo(w, h); p.close(); drawRect(c, Offset.Zero, androidx.compose.ui.geometry.Size(w * 0.2f, h)) }
+    drawPath(p, c)
 }
 
 /**

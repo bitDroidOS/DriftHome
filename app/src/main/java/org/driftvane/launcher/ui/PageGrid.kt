@@ -234,11 +234,14 @@ private fun WidgetCell(
                     val nc = ((c.col * cellW + o.x) / cellW).roundToInt().coerceIn(0, model.columns - c.spanX)
                     val nr = ((c.row * cellH + o.y) / cellH).roundToInt().coerceIn(0, model.iconRows(page) - c.spanY)
                     if (model.setWidgetRect(c.id, nc, nr, c.spanX, c.spanY)) {
-                        // the grid position animates there; drop the finger offset
+                        // hand the finger offset over to the grid position, then always settle
+                        // exactly on the cell (also when it lands back in the same spot)
                         placed = true
+                        val dest = IntOffset((nc * cellW).roundToInt(), (nr * cellH).roundToInt())
                         scope.launch {
                             pos.snapTo(pos.value + IntOffset(o.x.roundToInt(), o.y.roundToInt()))
                             move.snapTo(Offset.Zero)
+                            pos.animateTo(dest, spring(dampingRatio = 0.8f, stiffness = 500f))
                         }
                     }
                 }

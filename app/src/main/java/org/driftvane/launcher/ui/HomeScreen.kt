@@ -152,6 +152,10 @@ fun HomeScreen(
     var drawerOpen by remember { mutableStateOf(false) }
     // How far the swipe-up drawer is open (0 closed, 1 open). It follows your finger.
     val drawerReveal = remember { androidx.compose.animation.core.Animatable(0f) }
+    // App opening: home zooms in toward the icon you tapped and fades while the app grows out
+    // of it; it springs back when you come home.
+    val launchZoom = remember { androidx.compose.animation.core.Animatable(0f) }
+    var launchOrigin by remember { mutableStateOf(Offset.Zero) }
     val screenH = with(density) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
     var styleOpen by remember { mutableStateOf(false) }
 
@@ -238,7 +242,16 @@ fun HomeScreen(
         object : ItemHandler {
             override fun tap(key: String, bounds: Rect) {
                 if (isFolder(key)) openFolder = key
-                else { actions.launch(key, bounds); openFolder = null; drawerOpen = false; openCategory = null }
+                else {
+                    launchOrigin = bounds.center
+                    scope.launch {
+                        launchZoom.animateTo(1f, tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                        // if the app never opened, don't leave home zoomed in
+                        kotlinx.coroutines.delay(2500)
+                        if (launchZoom.value == 1f) launchZoom.animateTo(0f, spring(dampingRatio = 0.78f, stiffness = 240f))
+                    }
+                    actions.launch(key, bounds); openFolder = null; drawerOpen = false; openCategory = null
+                }
             }
             override fun menu(key: String, bounds: Rect) {
                 buzz(HapticFeedbackType.LongPress)
@@ -327,6 +340,9 @@ fun HomeScreen(
         }
     }
     val resumed by resumes.collectAsStateCompat()
+    LaunchedEffect(resumed) {
+        if (launchZoom.value > 0f) launchZoom.animateTo(0f, spring(dampingRatio = 0.78f, stiffness = 240f))
+    }
     LaunchedEffect(model.lockLayout) { if (model.lockLayout) editMode = false }
 
     val anyOverlay = searchOpen || menuKey != null || homeMenu || widgetPicker || openFolder != null ||
@@ -376,8 +392,15 @@ fun HomeScreen(
             Modifier.fillMaxSize()
                 .graphicsLayer {
                     val p = (drawerReveal.value - drawerPull / screenH).coerceIn(0f, 1f)
-                    val sc = 1f - 0.06f * p
-                    scaleX = sc; scaleY = sc; alpha = 1f - 0.7f * p
+                    val z = launchZoom.value
+                    val sc = (1f - 0.06f * p) * (1f + 0.14f * z)
+                    scaleX = sc; scaleY = sc; alpha = (1f - 0.7f * p) * (1f - 0.9f * z)
+                    if (z > 0f && size.width > 0f) {
+                        transformOrigin = TransformOrigin(
+                            (launchOrigin.x / size.width).coerceIn(0f, 1f),
+                            (launchOrigin.y / size.height).coerceIn(0f, 1f),
+                        )
+                    }
                 }
                 .blur(blur)
                 .pointerInput(editMode, onLibrary, model.swipeDown, drawerMode) {
