@@ -389,7 +389,9 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         prefs.edit().putStringSet("hidden_apps", hiddenApps).apply()
         if (hidden) {
             dock.remove(key)
+            val from = pages.indexOfFirst { key in it.items }
             for (i in pages.indices) pages[i] = pages[i].copy(items = pages[i].items.gapOut(key))
+            if (from >= 0) pullForward(from)
             for (id in folders.keys.toList()) folders[id]?.let { f -> folders[id] = f.copy(apps = f.apps - key) }
             cleanupFolders(); compact(); save()
         } else {
@@ -744,11 +746,15 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
                 val f = folders[id]!!
                 folders[id] = f.copy(apps = f.apps.filter { it in apps })
             }
+            // bitDroid: an uninstalled app's spot gets filled by the apps after it
+            var firstGone = -1
             for (i in pages.indices) {
+                if (firstGone < 0 && pages[i].items.any { it != EMPTY && !(if (isFolder(it)) it in folders else it in apps) }) firstGone = i
                 pages[i] = pages[i].copy(items = pages[i].items.map {
                     if (it == EMPTY || (if (isFolder(it)) it in folders else it in apps)) it else EMPTY
                 }.trimEmpty())
             }
+            if (firstGone >= 0) pullForward(firstGone)
             cleanupFolders()
             val placed = placedApps()
             val hidden = hiddenFromHome() + hiddenApps
@@ -834,6 +840,23 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         for (i in pages.indices) spill(i)
         compact()
         save()
+    }
+
+    /** Close gaps from page [from] on: apps after a gap move back, the next page's first app fills the last spot. */
+    private fun pullForward(from: Int) {
+        for (i in from until pages.size) {
+            if (i == 0 && orbitFirst) continue
+            val items = pages[i].items.filter { it != EMPTY }.toMutableList()
+            val cap = capacity(i)
+            var j = i + 1
+            while (items.size < cap && j < pages.size) {
+                val next = pages[j].items.filter { it != EMPTY }
+                if (next.isEmpty()) { j++; continue }
+                items.add(next.first())
+                pages[j] = pages[j].copy(items = next.drop(1))
+            }
+            pages[i] = pages[i].copy(items = items)
+        }
     }
 
     private fun compact() {
@@ -938,7 +961,10 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun removeFromHome(key: String) {
         if (!isFolder(key)) prefs.edit().putStringSet("hidden_home", hiddenFromHome() + key).apply()
         dock.remove(key)
+        // bitDroid: the gap closes up: later apps (also from the next pages) slide back to fill it
+        val from = pages.indexOfFirst { key in it.items }
         for (i in pages.indices) pages[i] = pages[i].copy(items = pages[i].items.gapOut(key))
+        if (from >= 0) pullForward(from)
         // removing a folder puts its apps back on the home screen
         folders.remove(key)?.apps?.forEach { append(it) }
         compact(); save()

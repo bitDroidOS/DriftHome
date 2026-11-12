@@ -329,6 +329,7 @@ private fun SheetDragIcon(app: AppEntry, handler: ItemHandler) {
                     val start = lp.position
                     val slop = viewConfiguration.touchSlop
                     var dragging = false
+                    handler.menu(app.key, bounds[0])
                     try {
                         drag(lp.id) { c ->
                             if (!dragging && (c.position - start).getDistance() > slop) {
@@ -339,7 +340,6 @@ private fun SheetDragIcon(app: AppEntry, handler: ItemHandler) {
                             c.consume()
                         }
                         currentEvent.changes.forEach { it.consume() }
-                        if (!dragging) handler.menu(app.key, bounds[0])
                     } finally {
                         if (dragging) handler.dragEnd()
                     }

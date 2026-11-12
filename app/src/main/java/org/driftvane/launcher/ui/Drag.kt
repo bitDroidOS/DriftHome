@@ -108,6 +108,9 @@ fun Modifier.iconGestures(
                 }
                 val start = lp.position
                 val slopPx = viewConfiguration.touchSlop
+                // the menu pops up the moment the hold is long enough (no need to let go);
+                // moving your finger from there closes it and starts dragging the icon
+                menu()
                 drag(lp.id) { c ->
                     if (!dragging && (c.position - start).getDistance() > slopPx) {
                         dragging = true
@@ -117,7 +120,6 @@ fun Modifier.iconGestures(
                     if (dragging) dMove(topLeft() + c.position)
                     c.consume()
                 }
-                if (!dragging) menu()
             } finally {
                 press(false)
                 if (dragging) dEnd()
