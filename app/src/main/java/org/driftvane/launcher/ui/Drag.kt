@@ -103,7 +103,11 @@ fun Modifier.iconGestures(
                 if (lp == null) {
                     press(false)
                     val up = currentEvent.changes.firstOrNull { it.id == down.id }
-                    if (up != null && up.changedToUpIgnoreConsumed() && !up.isConsumed) tap()
+                    if (up != null && up.changedToUpIgnoreConsumed() && !up.isConsumed) {
+                        // take the tap, so whatever the icon sits on (a Bento tile) doesn't also react
+                        up.consume()
+                        tap()
+                    }
                     return@awaitEachGesture
                 }
                 val start = lp.position

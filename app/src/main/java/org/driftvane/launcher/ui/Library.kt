@@ -524,12 +524,11 @@ private fun BentoTile(
         modifier
             .graphicsLayer {
                 val e = enter.value
-                scaleX = (0.85f + 0.15f * e) * sq; scaleY = (0.85f + 0.15f * e) * sq
+                scaleX = 0.85f + 0.15f * e; scaleY = 0.85f + 0.15f * e
                 alpha = e.coerceIn(0f, 1f)
                 translationY = (1f - e) * 30f
             }
             .clip(shape).background(bg)
-            .clickable(src, indication = null) { onOpen() }
             .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
     ) {
         val iconSize = if (big) 52f else 48f
@@ -539,9 +538,11 @@ private fun BentoTile(
                     Box(Modifier.size((iconSize + 6).dp), contentAlignment = Alignment.Center) {
                         when {
                             i < shown.size -> LibIcon(shown[i], iconSize, false, handler, model)
+                            // only the + opens the whole category; tapping an app just opens the app
                             i == slots - 1 && more -> Box(
-                                Modifier.size(iconSize.dp).clip(LocalIconShape.current).background(fg.copy(alpha = 0.18f))
-                                    .clickable { onOpen() },
+                                Modifier.size(iconSize.dp).graphicsLayer { scaleX = sq; scaleY = sq }
+                                    .clip(LocalIconShape.current).background(fg.copy(alpha = 0.18f))
+                                    .clickable(src, indication = null) { onOpen() },
                                 contentAlignment = Alignment.Center,
                             ) { Text("+${apps.size - (slots - 1)}", color = fg, fontSize = 14.sp, fontWeight = FontWeight.W700) }
                         }
