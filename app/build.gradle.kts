@@ -14,7 +14,7 @@ android {
         targetSdk = 36
         versionCode = 30
         versionName = "0.13.0"
-        manifestPlaceholders["appLabel"] = "DriftHome"
+        manifestPlaceholders["appLabel"] = "bitHome"
     }
 
     buildTypes {
@@ -30,7 +30,7 @@ android {
             initWith(getByName("release"))
             applicationIdSuffix = ".preview"
             versionNameSuffix = "-preview"
-            manifestPlaceholders["appLabel"] = "DriftHome Preview"
+            manifestPlaceholders["appLabel"] = "bitHome Preview"
             matchingFallbacks += listOf("release")
         }
     }

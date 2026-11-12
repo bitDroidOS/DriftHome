@@ -123,7 +123,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                             Group { ActionRow("Reset home screen layout", Color(0xFFFF6B78)) { model.resetLayout(); onClose() } }
                         }
                         item {
-                            Text("DriftHome 0.11 · made for bitDroid", color = Color(0x80FFFFFF), fontSize = 12.sp,
+                            Text("bitHome 0.13 · made for bitDroid", color = Color(0x80FFFFFF), fontSize = 12.sp,
                                 fontWeight = FontWeight.W600, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
@@ -199,7 +199,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                             Group(title = "Now playing") {
                                 NavRow(
                                     "Show what's playing",
-                                    if (hasMediaAccess(ctx)) "On: the song shows under the clock" else "Turn on notification access for DriftHome",
+                                    if (hasMediaAccess(ctx)) "On: the song shows under the clock" else "Turn on notification access for bitHome",
                                     G.SPARK, model.accent, last = true,
                                 ) { openMediaAccessSettings(ctx) }
                             }

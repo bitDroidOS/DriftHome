@@ -312,7 +312,7 @@ fun WidgetPicker(
             val tiles = DriftTiles.all.filter { it.first !in placed }
             if (tiles.isNotEmpty()) item(key = "drift-tiles") {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color(0x14FFFFFF)).padding(14.dp)) {
-                    Text("DriftHome tiles", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.W700)
+                    Text("bitHome tiles", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.W700)
                     tiles.chunked(2).forEach { row ->
                         Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             row.forEach { (id, name) ->
