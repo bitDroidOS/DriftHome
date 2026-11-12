@@ -1,6 +1,6 @@
 # DriftHome
 
-The DriftVaneOS launcher. Pages of apps, a floating glass dock, folders, widgets and a smart App Library, styled to match AlexLMP.
+The bitDroid launcher. Pages of apps, a floating glass dock, folders, widgets and a smart App Library, styled to match AlexLMP.
 
 ## v0.9: setup and home styles
 
