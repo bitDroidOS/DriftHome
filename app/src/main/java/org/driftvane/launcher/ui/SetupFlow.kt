@@ -68,8 +68,6 @@ import org.driftvane.launcher.LauncherModel
 import kotlin.math.cos
 import kotlin.math.sin
 
-private const val HELIBOARD_PKG = "helium314.keyboard"
-
 /** The ROM's name, from the build (ro.driftvane.name), so a rename never needs a DriftHome change. */
 fun romName(): String = runCatching {
     val c = Class.forName("android.os.SystemProperties")
@@ -81,7 +79,7 @@ private val Ink = Color(0xFF0B0A10)
 private val Muted = Color(0xFFB4ADC2)
 
 /**
- * First-boot setup, in the Morph look: Welcome → Home (Morph or Orbit) → Shape → Extras.
+ * First-boot setup: Welcome → pick a home style (Bloom, Morph or Orbit) → tips.
  * Shown once after the phone's setup, and again from Home settings › Run setup again.
  */
 @Composable
@@ -90,8 +88,7 @@ fun SetupFlow(model: LauncherModel) {
     var step by remember { mutableIntStateOf(0) }
     var homeStyle by remember { mutableStateOf(model.devFavStyle) }
     var shape by remember { mutableStateOf(model.iconShape.takeIf { it != "rounded" } ?: "squircle") }
-    val heliboard = remember { runCatching { context.packageManager.getLaunchIntentForPackage(HELIBOARD_PKG) }.getOrNull() }
-    val last = 1
+    val last = 2
     BackHandler(enabled = step > 0) { step-- }
     val accent = model.accent
 
@@ -136,12 +133,24 @@ fun SetupFlow(model: LauncherModel) {
                 Column(Modifier.fillMaxSize()) {
                     when (s) {
                         0 -> Welcome()
+                        1 -> {
+                            Title("Pick your home", "You can switch any time from Wallpaper & style.")
+                            Spacer(Modifier.height(22.dp))
+                            Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                StyleCard("Bloom", "Big, round, colorful", homeStyle == "bloom", model.devFavStyle == "bloom",
+                                    Modifier.weight(1f).fillMaxHeight(), onClick = { homeStyle = "bloom" }) { BloomPreview(shape) }
+                                StyleCard("Morph", "Tiles and widgets", homeStyle == "morph", model.devFavStyle == "morph",
+                                    Modifier.weight(1f).fillMaxHeight(), onClick = { homeStyle = "morph" }) { MorphPreview(shape, accent) }
+                                StyleCard("Orbit", "Apps in a ring", homeStyle == "orbit", model.devFavStyle == "orbit",
+                                    Modifier.weight(1f).fillMaxHeight(), onClick = { homeStyle = "orbit" }) { OrbitPreview(shape) }
+                            }
+                        }
                         else -> {
                             Title("Make it yours", "Here's where everything lives.")
                             Spacer(Modifier.height(18.dp))
                             Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                TipCard("Home styles", "Hold an empty spot on the home screen, then Wallpaper & style. Pick Bloom, Morph or Orbit, your wallpaper and icon shape.")
+                                TipCard("Change your look", "Hold an empty spot on the home screen, then Wallpaper & style. Switch between Bloom, Morph and Orbit, or change your wallpaper and icon shape.")
                                 TipCard("Move or remove anything", "Hold a tile, a widget or the search bar to drag it around or drop it on Remove.")
                                 TipCard("Your apps", "Swipe up for all your apps. Swipe down for notifications.")
                                 ActionCard("${romName()} Enhancements", "Lock screen, glance bar, Quick Settings and more. It's the first thing in Settings.") {
@@ -161,7 +170,7 @@ fun SetupFlow(model: LauncherModel) {
                 }
                 Spacer(Modifier.weight(1f))
                 OutlinePill(if (step == 0) "Let's go" else if (step == last) "Done" else "Next", filled = step == last) {
-                    if (step < last) step++ else model.finishSetup(model.devFavStyle, "squircle")
+                    if (step < last) step++ else model.finishSetup(homeStyle, shape)
                 }
             }
         }
