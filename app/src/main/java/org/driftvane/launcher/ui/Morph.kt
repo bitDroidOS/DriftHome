@@ -11,6 +11,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.text.withStyle
 import androidx.compose.animation.core.animateFloatAsState
@@ -846,7 +847,7 @@ private fun BloomTile(model: LauncherModel, w: WidgetItem, modifier: Modifier) {
 }
 
 /** Squish on press, spring back with a bounce. */
-private fun Modifier.bloomBounce(onClick: () -> Unit): Modifier = androidx.compose.ui.composed {
+private fun Modifier.bloomBounce(onClick: () -> Unit): Modifier = composed {
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val s by animateFloatAsState(if (pressed) 0.82f else 1f, spring(0.4f, 600f), label = "bb")
