@@ -40,6 +40,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -366,7 +368,17 @@ private fun SheetIcon(app: AppEntry, model: LauncherModel, handler: ItemHandler)
 
 /** Swipe-up app drawer (when the library style is "Swipe up"). */
 @Composable
-fun AppDrawer(model: LauncherModel, handler: ItemHandler, onClose: () -> Unit, onSearch: () -> Unit) {
+fun AppDrawer(
+    model: LauncherModel,
+    handler: ItemHandler,
+    onClose: () -> Unit,
+    onOpenCategory: (String) -> Unit = {},
+    onSearch: () -> Unit,
+) {
+    if (model.libraryStyle == LibraryStyle.BENTO) {
+        BentoLibrary(model, handler, onClose, onOpenCategory, onSearch)
+        return
+    }
     val all = remember(model.apps.size, model.hiddenApps.size, model.iconTheme, model.accentIndex) { model.visibleApps().sortedBy { it.label.lowercase() } }
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         item {
@@ -403,5 +415,147 @@ fun AppDrawer(model: LauncherModel, handler: ItemHandler, onClose: () -> Unit, o
             }
         }
         item { Spacer(Modifier.height(80.dp)) }
+    }
+}
+
+
+// ------------------------------------------------------------------------------- Bento library
+
+/**
+ * Bento App Library (swipe up from home): every category is a tile in your wallpaper's Material
+ * You colors; the category you use most gets the big tile. Tap an app to open it, tap the tile
+ * (or +N) to see the whole category. Pull down at the top of the list to close.
+ */
+@Composable
+private fun BentoLibrary(
+    model: LauncherModel,
+    handler: ItemHandler,
+    onClose: () -> Unit,
+    onOpenCategory: (String) -> Unit,
+    onSearch: () -> Unit,
+) {
+    val tones = bloomTones()
+    val groups = remember(model.apps.size, model.apps.keys.hashCode(), model.hiddenApps.size, model.iconTheme) {
+        model.categories().sortedByDescending { (_, apps) -> apps.sumOf { model.launches(it.key) } * 1000 + apps.size }
+    }
+    val palette = listOf(
+        tones.p to tones.onP, tones.s to tones.onS, tones.t to tones.onT, tones.accent to tones.p,
+    )
+    LazyColumn(
+        Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 60.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item(key = "grab") {
+            Box(
+                Modifier.fillMaxWidth().clickable { onClose() }.padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) { Box(Modifier.width(44.dp).height(5.dp).background(Color(0x66FFFFFF), RoundedCornerShape(50))) }
+        }
+        item(key = "search") {
+            Row(
+                Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(50)).background(tones.p)
+                    .clickable { onSearch() }.padding(horizontal = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(38.dp).clip(CircleShape).background(tones.accent), contentAlignment = Alignment.Center) {
+                    androidx.compose.foundation.Canvas(Modifier.size(16.dp)) {
+                        val r = size.minDimension * 0.33f
+                        val c = androidx.compose.ui.geometry.Offset(size.width * 0.42f, size.height * 0.42f)
+                        drawCircle(tones.p, r, c, style = androidx.compose.ui.graphics.drawscope.Stroke(size.minDimension * 0.15f))
+                        drawLine(tones.p, c + androidx.compose.ui.geometry.Offset(r * 0.72f, r * 0.72f),
+                            androidx.compose.ui.geometry.Offset(size.width * 0.92f, size.height * 0.92f),
+                            size.minDimension * 0.16f, androidx.compose.ui.graphics.StrokeCap.Round)
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Text("Search apps", color = tones.onP, fontSize = 16.sp, fontWeight = FontWeight.W600)
+            }
+        }
+        groups.firstOrNull()?.let { (title, apps) ->
+            item(key = "B$title") {
+                BentoTile(title, apps, model, handler, palette[0], big = true, Modifier.fillMaxWidth(), 0) { onOpenCategory(title) }
+            }
+        }
+        groups.drop(1).chunked(2).forEachIndexed { row, pair ->
+            item(key = "B" + pair.first().first) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    pair.forEachIndexed { i, (title, apps) ->
+                        val idx = 1 + row * 2 + i
+                        BentoTile(title, apps, model, handler, palette[idx % palette.size], big = false,
+                            Modifier.weight(1f), idx) { onOpenCategory(title) }
+                    }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BentoTile(
+    title: String,
+    apps: List<AppEntry>,
+    model: LauncherModel,
+    handler: ItemHandler,
+    colors: Pair<Color, Color>,
+    big: Boolean,
+    modifier: Modifier,
+    index: Int,
+    onOpen: () -> Unit,
+) {
+    val (bg, fg) = colors
+    val cols = if (big) 4 else 2
+    val slots = if (big) 8 else 4
+    val more = apps.size > slots
+    val shown = if (more) apps.take(slots - 1) else apps.take(slots)
+    // tiles pop in one after another when the drawer opens
+    val enter = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(40L * index.coerceAtMost(8))
+        enter.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = 380f))
+    }
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val sq by androidx.compose.animation.core.animateFloatAsState(if (pressed) 0.96f else 1f,
+        androidx.compose.animation.core.spring(0.45f, 600f), label = "bt")
+    val shape = tileShape(model.iconShape)
+    Column(
+        modifier
+            .graphicsLayer {
+                val e = enter.value
+                scaleX = (0.85f + 0.15f * e) * sq; scaleY = (0.85f + 0.15f * e) * sq
+                alpha = e.coerceIn(0f, 1f)
+                translationY = (1f - e) * 30f
+            }
+            .clip(shape).background(bg)
+            .clickable(src, indication = null) { onOpen() }
+            .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
+    ) {
+        val iconSize = if (big) 52f else 48f
+        (0 until slots).chunked(cols).forEach { r ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                r.forEach { i ->
+                    Box(Modifier.size((iconSize + 6).dp), contentAlignment = Alignment.Center) {
+                        when {
+                            i < shown.size -> LibIcon(shown[i], iconSize, false, handler, model)
+                            i == slots - 1 && more -> Box(
+                                Modifier.size(iconSize.dp).clip(LocalIconShape.current).background(fg.copy(alpha = 0.18f))
+                                    .clickable { onOpen() },
+                                contentAlignment = Alignment.Center,
+                            ) { Text("+${apps.size - (slots - 1)}", color = fg, fontSize = 14.sp, fontWeight = FontWeight.W700) }
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, color = fg, fontSize = if (big) 17.sp else 14.sp, fontWeight = FontWeight.W700,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text("${apps.size}", color = fg, fontSize = 12.sp, fontWeight = FontWeight.W700,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.18f))
+                    .padding(horizontal = 8.dp, vertical = 2.dp))
+        }
     }
 }

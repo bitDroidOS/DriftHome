@@ -123,7 +123,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                             Group { ActionRow("Reset home screen layout", Color(0xFFFF6B78)) { model.resetLayout(); onClose() } }
                         }
                         item {
-                            Text("bitHome 0.13 · made for bitDroid", color = Color(0x80FFFFFF), fontSize = 12.sp,
+                            Text("bitHome 0.14 · made for bitDroid", color = Color(0x80FFFFFF), fontSize = 12.sp,
                                 fontWeight = FontWeight.W600, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
@@ -231,6 +231,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                         item {
                             Group(title = "Style") {
                                 listOf(
+                                    Triple(LibraryStyle.BENTO, "Bento", "Colorful category tiles; swipe up anywhere"),
                                     Triple(LibraryStyle.FOLDERS, "Folders", "All / Categories tabs, folders, search at the bottom"),
                                     Triple(LibraryStyle.SMART, "Smart categories", "Suggestions, recently added, auto-sorted groups"),
                                     Triple(LibraryStyle.CARDS, "Category cards", "2×2 cards for each category"),
@@ -384,7 +385,7 @@ private fun styleHint(id: String) = when (id) {
 
 private fun dockName(id: String) = when (id) { "clear" -> "Clear"; "solid" -> "Solid"; "line" -> "Line"; "tonal" -> "Tonal"; else -> "Tinted card" }
 private fun libraryName(id: String) = when (id) {
-    LibraryStyle.FOLDERS -> "Folders"; LibraryStyle.CARDS -> "Category cards"; LibraryStyle.LIST -> "A–Z list"; LibraryStyle.DRAWER -> "Swipe-up drawer"; else -> "Smart categories"
+    LibraryStyle.FOLDERS -> "Folders"; LibraryStyle.CARDS -> "Category cards"; LibraryStyle.LIST -> "A–Z list"; LibraryStyle.DRAWER -> "Swipe-up drawer"; LibraryStyle.BENTO -> "Bento"; else -> "Smart categories"
 }
 private fun themeHint(id: String) = when (id) {
     IconTheme.THEMED -> "Icons tinted with your accent color"

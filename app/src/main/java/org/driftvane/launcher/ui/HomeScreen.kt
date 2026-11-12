@@ -134,7 +134,7 @@ fun HomeScreen(
             model.cellH = avail.coerceIn(80.dp, 140.dp)
         }
     }
-    val drawerMode = model.libraryStyle == LibraryStyle.DRAWER
+    val drawerMode = model.libraryStyle == LibraryStyle.DRAWER || model.libraryStyle == LibraryStyle.BENTO
     val pageCount = model.pages.size + if (drawerMode) 0 else 1
     val pager = rememberPagerState { pageCount }
     val drag = remember { DragState() }
@@ -581,10 +581,6 @@ fun HomeScreen(
             val id = openFolder
             if (id != null) FolderOverlay(model, id, handler)
         }
-        Overlay(openCategory != null, onDismiss = { openCategory = null }, center = true, hidden = hideForDrag) {
-            val c = openCategory
-            if (c != null) CategorySheet(model, c, handler)
-        }
         LaunchedEffect(drawerOpen) {
             if (drawerOpen) drawerReveal.animateTo(1f, spring(dampingRatio = 0.86f, stiffness = 380f))
             else drawerReveal.animateTo(0f, spring(dampingRatio = 1f, stiffness = 420f))
@@ -600,7 +596,11 @@ fun HomeScreen(
                     .background(Color(0xD90B0A0D), RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                     .statusBarsPadding()
                     .nestedScroll(drawerScroll)
-            ) { AppDrawer(model, handler, onClose = { drawerOpen = false }) { searchOpen = true } }
+            ) { AppDrawer(model, handler, onClose = { drawerOpen = false }, onOpenCategory = { openCategory = it }) { searchOpen = true } }
+        }
+        Overlay(openCategory != null, onDismiss = { openCategory = null }, center = true, hidden = hideForDrag) {
+            val c = openCategory
+            if (c != null) CategorySheet(model, c, handler)
         }
         Overlay(homeMenu, onDismiss = { homeMenu = false }, plain = true) {
             HomeMenu(model, homeAnchor,

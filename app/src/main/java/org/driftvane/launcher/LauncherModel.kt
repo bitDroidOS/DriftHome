@@ -92,6 +92,8 @@ object LibraryStyle {
     const val CARDS = "cards"
     const val LIST = "list"
     const val DRAWER = "drawer"
+    /** Bloom-colored bento category tiles in a swipe-up drawer (the default). */
+    const val BENTO = "bento"
 }
 
 object SwipeDown {
@@ -152,6 +154,10 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             // 0.11: Morph is the new default. Run the (new) setup once so everyone picks Morph or Orbit.
             prefs.edit().putInt("look", 12).putBoolean("setup_done", false).apply()
         }
+        if (prefs.getInt("look", 0) < 13) {
+            // 0.14: the Bento App Library in a swipe-up drawer is the new default
+            prefs.edit().putInt("look", 13).putString("library", LibraryStyle.BENTO).apply()
+        }
     }
 
     val apps = mutableStateMapOf<String, AppEntry>()
@@ -188,7 +194,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
     var showDock by mutableStateOf(prefs.getBoolean("dock", true))
         private set
-    var libraryStyle by mutableStateOf(prefs.getString("library", LibraryStyle.CARDS)!!)
+    var libraryStyle by mutableStateOf(prefs.getString("library", LibraryStyle.BENTO)!!)
         private set
     var swipeDown by mutableStateOf(prefs.getString("swipe_down", SwipeDown.NOTIFICATIONS)!!)
         private set
@@ -286,7 +292,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             .putString("dock_style", "clear").putBoolean("labels", false).putBoolean("grid_panel", false)
             .putBoolean("search_pill", true).putBoolean("dots", true).putInt("columns", 4).putFloat("icon_scale", 1.26f)
             .putString("swipe_down", SwipeDown.NOTIFICATIONS)
-            .putString("library", LibraryStyle.CARDS).apply()
+            .putString("library", LibraryStyle.BENTO).apply()
         topStyle = style
         showGlance = true
         iconShape = shape
@@ -297,7 +303,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         showDots = true
         iconScale = 1.26f
         swipeDown = SwipeDown.NOTIFICATIONS
-        libraryStyle = LibraryStyle.CARDS
+        libraryStyle = LibraryStyle.BENTO
         columns = 4
         iconTheme = IconTheme.ORIGINAL
         // built-in tiles: Morph starts with them on page one, Orbit has its own first page
@@ -669,6 +675,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         val n = prefs.getInt("launch_$key", 0)
         prefs.edit().putInt("launch_$key", n + 1).apply()
     }
+    fun launches(key: String): Int = prefs.getInt("launch_$key", 0)
     fun suggestions(n: Int = 8): List<AppEntry> =
         visibleApps().sortedByDescending { prefs.getInt("launch_${it.key}", 0) }
             .filter { prefs.getInt("launch_${it.key}", 0) > 0 }.take(n)

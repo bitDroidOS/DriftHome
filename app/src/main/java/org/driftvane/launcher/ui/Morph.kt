@@ -12,6 +12,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.ui.composed
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.text.withStyle
 import androidx.compose.animation.core.animateFloatAsState
@@ -143,10 +144,57 @@ fun Modifier.morphTile(shape: Shape, accent: Color, tone: Int = 0): Modifier {
 }
 
 private fun nextAlarm(context: Context): String? = runCatching {
-    val t = context.getSystemService(AlarmManager::class.java)?.nextAlarmClock?.triggerTime ?: return null
+    val t = context.getSystemService(AlarmManager::class.java)?.nextAlarmClock?.triggerTime
+    if (t == null) {
+        // some clock apps only publish the old-style text
+        @Suppress("DEPRECATION")
+        return@runCatching android.provider.Settings.System.getString(
+            context.contentResolver, android.provider.Settings.System.NEXT_ALARM_FORMATTED
+        )?.takeIf { it.isNotBlank() }
+    }
     val is24 = android.text.format.DateFormat.is24HourFormat(context)
-    SimpleDateFormat(if (is24) "EEE HH:mm" else "EEE h:mm a", Locale.getDefault()).format(Date(t))
+    val time = SimpleDateFormat(if (is24) "HH:mm" else "h:mm a", Locale.getDefault()).format(Date(t))
+    val cal = java.util.Calendar.getInstance()
+    val today = cal.get(java.util.Calendar.DAY_OF_YEAR) to cal.get(java.util.Calendar.YEAR)
+    cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+    val tomorrow = cal.get(java.util.Calendar.DAY_OF_YEAR) to cal.get(java.util.Calendar.YEAR)
+    cal.timeInMillis = t
+    val day = cal.get(java.util.Calendar.DAY_OF_YEAR) to cal.get(java.util.Calendar.YEAR)
+    when (day) {
+        today -> time
+        tomorrow -> "Tomorrow $time"
+        else -> SimpleDateFormat("EEE", Locale.getDefault()).format(Date(t)) + " " + time
+    }
 }.getOrNull()
+
+/** The next alarm, kept fresh: updates the moment an alarm is set or cleared, and on return home. */
+@Composable
+private fun rememberNextAlarm(context: Context): String? {
+    var alarm by remember { mutableStateOf(nextAlarm(context)) }
+    DisposableEffect(Unit) {
+        val rx = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: Context?, i: Intent?) { alarm = nextAlarm(context) }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED)
+            addAction(Intent.ACTION_TIME_CHANGED)
+            addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            addAction(Intent.ACTION_DATE_CHANGED)
+        }
+        runCatching { context.registerReceiver(rx, filter, Context.RECEIVER_EXPORTED) }
+        onDispose { runCatching { context.unregisterReceiver(rx) } }
+    }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) alarm = nextAlarm(context)
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
+    LaunchedEffect(Unit) { while (true) { delay(30_000); alarm = nextAlarm(context) } }
+    return alarm
+}
 
 private fun openClockApp(context: Context) {
     runCatching { context.startActivity(Intent(AlarmClock.ACTION_SHOW_ALARMS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
@@ -225,7 +273,7 @@ fun DriftTile(model: LauncherModel, w: WidgetItem, modifier: Modifier) {
             }
         }
         DriftTiles.DATE -> {
-            val alarm by produceState(nextAlarm(context)) { while (true) { value = nextAlarm(context); delay(60_000) } }
+            val alarm = rememberNextAlarm(context)
             Row(
                 modifier.morphTile(shape, model.accent, tone = 1)
                     .clickable(remember { MutableInteractionSource() }, indication = null) { openClockApp(context) }
@@ -456,7 +504,7 @@ fun OrbitPage(model: LauncherModel, items: List<String>, handler: ItemHandler) {
     val scope = rememberCoroutineScope()
     val spin = remember { Animatable(0f) }
     val apps = items.filter { it != EMPTY && (model.apps[it] != null || model.folders[it] != null) }.take(ORBIT_SLOTS)
-    val alarm by produceState(nextAlarm(context)) { while (true) { value = nextAlarm(context); delay(60_000) } }
+    val alarm = rememberNextAlarm(context)
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current
         val wPx = constraints.maxWidth.toFloat()
@@ -787,7 +835,7 @@ private fun BloomTile(model: LauncherModel, w: WidgetItem, modifier: Modifier) {
             }
         }
         DriftTiles.DATE -> {
-            val alarm by produceState(nextAlarm(context)) { while (true) { value = nextAlarm(context); delay(60_000) } }
+            val alarm = rememberNextAlarm(context)
             Row(
                 modifier.then(pop).then(press).clip(shape).background(tones.accent)
                     .clickable(src, indication = null) { openClockApp(context) }
