@@ -271,7 +271,12 @@ fun FolderOverlay(model: LauncherModel, id: String, handler: ItemHandler) {
 
 /** Pick a widget: grouped by app, with previews. */
 @Composable
-fun WidgetPicker(model: LauncherModel, providers: List<AppWidgetProviderInfo>, onPick: (AppWidgetProviderInfo) -> Unit) {
+fun WidgetPicker(
+    model: LauncherModel,
+    providers: List<AppWidgetProviderInfo>,
+    onTile: (Int) -> Unit = {},
+    onPick: (AppWidgetProviderInfo) -> Unit,
+) {
     val context = LocalContext.current
     val pm = context.packageManager
     fun appName(pkg: String) = runCatching {
@@ -288,6 +293,31 @@ fun WidgetPicker(model: LauncherModel, providers: List<AppWidgetProviderInfo>, o
         Text("Tap one to add it to this page", color = Color(0xB3FFFFFF), fontSize = 14.sp, fontWeight = FontWeight.W500)
         Spacer(Modifier.height(14.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // DriftHome's own tiles (only the ones not already on a page)
+            val placed = model.allWidgetIds().toSet()
+            val tiles = DriftTiles.all.filter { it.first !in placed }
+            if (tiles.isNotEmpty()) item(key = "drift-tiles") {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color(0x14FFFFFF)).padding(14.dp)) {
+                    Text("DriftHome tiles", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.W700)
+                    tiles.chunked(2).forEach { row ->
+                        Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            row.forEach { (id, name) ->
+                                val (sx, sy) = DriftTiles.span(id)
+                                Box(
+                                    Modifier.weight(1f).height(if (sy > 1) 120.dp else 64.dp).clip(tileShape(model.iconShape)),
+                                ) {
+                                    DriftTile(model, org.driftvane.launcher.WidgetItem(id, 0, 0, sx, sy), Modifier.fillMaxSize())
+                                    Box(Modifier.matchParentSize().clickable { onTile(id) })
+                                    Text(name, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.W700,
+                                        modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
+                                            .background(Color(0x66000000), RoundedCornerShape(50)).padding(horizontal = 7.dp, vertical = 2.dp))
+                                }
+                            }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
             grouped.forEach { (pkg, list) ->
                 item(key = pkg) {
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color(0x14FFFFFF)).padding(14.dp)) {

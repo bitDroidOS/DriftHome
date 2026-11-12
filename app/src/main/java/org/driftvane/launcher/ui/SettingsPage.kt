@@ -123,7 +123,7 @@ fun SettingsPage(model: LauncherModel, onClose: () -> Unit) {
                             Group { ActionRow("Reset home screen layout", Color(0xFFFF6B78)) { model.resetLayout(); onClose() } }
                         }
                         item {
-                            Text("DriftHome 0.9.1 · made for DriftVaneOS", color = Color(0x80FFFFFF), fontSize = 12.sp,
+                            Text("DriftHome 0.11 · made for bitDroid", color = Color(0x80FFFFFF), fontSize = 12.sp,
                                 fontWeight = FontWeight.W600, modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         }
@@ -371,6 +371,8 @@ fun dockModifier(model: LauncherModel): Modifier = when (model.dockStyle) {
 }
 
 private fun styleHint(id: String) = when (id) {
+    "morph" -> "Tiles and apps in one shape; hold anything to move it"
+    "orbit" -> "Apps on a ring around the clock; spin it"
     "frame" -> "Your wallpaper in a window with the clock"
     "split" -> "Swipeable cards on top, apps below"
     "stack" -> "A deck of cards you flick through"

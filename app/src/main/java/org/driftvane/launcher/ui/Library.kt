@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -134,9 +135,20 @@ fun AppLibrary(
         }
         item {
             Box(
-                Modifier.fillMaxWidth().glass(22.dp, model.glassStrength).clickable { onSearch() }
+                Modifier.fillMaxWidth()
+                    .then(
+                        // Morph / Orbit: the same bold outlined pill as the home search bar
+                        if (isMorphLike(model.topStyle)) {
+                            Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.10f))
+                                .border(1.8.dp, Color.White.copy(alpha = 0.92f), RoundedCornerShape(50))
+                        } else Modifier.glass(22.dp, model.glassStrength)
+                    )
+                    .clickable { onSearch() }
                     .padding(horizontal = 18.dp, vertical = 14.dp)
-            ) { Text("Search apps", color = Color(0xFFA6ADB2), fontSize = 16.sp, fontWeight = FontWeight.W700) }
+            ) {
+                Text("Search apps", color = if (isMorphLike(model.topStyle)) Color.White else Color(0xFFA6ADB2),
+                    fontSize = 16.sp, fontWeight = FontWeight.W700)
+            }
         }
 
         when (model.libraryStyle) {
@@ -366,9 +378,20 @@ fun AppDrawer(model: LauncherModel, handler: ItemHandler, onClose: () -> Unit, o
                 Box(Modifier.width(44.dp).height(5.dp).background(Color(0x66FFFFFF), RoundedCornerShape(50)))
             }
             Box(
-                Modifier.fillMaxWidth().glass(22.dp, model.glassStrength).clickable { onSearch() }
+                Modifier.fillMaxWidth()
+                    .then(
+                        // Morph / Orbit: the same bold outlined pill as the home search bar
+                        if (isMorphLike(model.topStyle)) {
+                            Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.10f))
+                                .border(1.8.dp, Color.White.copy(alpha = 0.92f), RoundedCornerShape(50))
+                        } else Modifier.glass(22.dp, model.glassStrength)
+                    )
+                    .clickable { onSearch() }
                     .padding(horizontal = 18.dp, vertical = 14.dp)
-            ) { Text("Search apps", color = Color(0xFFA6ADB2), fontSize = 16.sp, fontWeight = FontWeight.W700) }
+            ) {
+                Text("Search apps", color = if (isMorphLike(model.topStyle)) Color.White else Color(0xFFA6ADB2),
+                    fontSize = 16.sp, fontWeight = FontWeight.W700)
+            }
             Spacer(Modifier.height(12.dp))
         }
         items(all.chunked(model.columns), key = { it.first().key }) { row ->

@@ -86,11 +86,11 @@ private fun batteryOf(context: Context): Pair<Int, Boolean> {
 }
 
 /** Live time / battery / now playing, shared by all the style cards. */
-private class Live(val time: String, val day: String, val battery: Int, val charging: Boolean,
+internal class Live(val time: String, val day: String, val battery: Int, val charging: Boolean,
                    val playing: NowPlaying?, val access: Boolean)
 
 @Composable
-private fun rememberLive(): Live {
+internal fun rememberLive(): Live {
     val context = LocalContext.current
     val now by produceState(Date()) {
         while (true) { value = Date(); delay((60 - Calendar.getInstance().get(Calendar.SECOND)) * 1000L) }

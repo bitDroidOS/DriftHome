@@ -28,6 +28,8 @@ sealed class Hover {
     data class Insert(val page: Int, val index: Int) : Hover()
     data class Onto(val page: Int, val target: String) : Hover()
     data class Dock(val index: Int) : Hover()
+    /** Over the Remove pill at the top of the screen. */
+    data object Remove : Hover()
 }
 
 @Stable
@@ -41,6 +43,12 @@ class DragState {
 
     val grids = mutableStateMapOf<Int, GridInfo>()
     var dockBounds by mutableStateOf(Rect.Zero)
+    /** The Remove pill (top of the screen while something is lifted). */
+    var removeBounds by mutableStateOf(Rect.Zero)
+    /** A widget or tile is being dragged (they move themselves, not through [key]). */
+    var widgetDrag by mutableStateOf(false)
+    /** The dragged widget is over the Remove pill. */
+    var widgetOverRemove by mutableStateOf(false)
 
     val active get() = key != null
 

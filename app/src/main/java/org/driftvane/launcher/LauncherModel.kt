@@ -102,6 +102,14 @@ object SwipeDown {
 
 fun isFolder(key: String) = key.startsWith("folder:")
 
+/** DriftHome's built-in tiles (see ui/Morph.kt DriftTiles); same ids. */
+const val DT_MUSIC = -1
+const val DT_CLOCK = -2
+const val DT_DATE = -3
+const val DT_BATTERY = -4
+/** Apps on the Orbit ring (page one). */
+const val ORBIT_RING = 10
+
 /** An empty cell on a home page (apps can sit anywhere on the grid, with gaps). */
 const val EMPTY = ""
 
@@ -124,6 +132,10 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
                 .putString("top_style", "bold").putBoolean("grid_panel", false)
                 .putString("library", LibraryStyle.CARDS)
                 .putBoolean("pending_reflow", true).apply()
+        }
+        if (prefs.getInt("look", 0) < 10) {
+            // 0.11: Morph is the new default. Run the (new) setup once so everyone picks Morph or Orbit.
+            prefs.edit().putInt("look", 10).putBoolean("setup_done", false).apply()
         }
     }
 
@@ -200,7 +212,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         get() = when (topStyle) {
             "split", "stack" -> 2
             "stock" -> 1
-            "columns" -> 0
+            "columns", "morph", "orbit" -> 0
             else -> 3
         }
 
@@ -216,10 +228,10 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
 
     /** Home styles offered in setup (id to name). */
-    val homeStyles = listOf("stack" to "Stack", "stock" to "Stock", "dashboard" to "Dashboard", "frame" to "Frame", "split" to "Split", "columns" to "Columns")
+    val homeStyles = listOf("morph" to "Morph", "orbit" to "Orbit")
 
     /** The style Alex recommends (shown first in setup with a "Dev's Fav" tag). */
-    val devFavStyle = "stack"
+    val devFavStyle = "morph"
 
     /** Page swipe animation on the home screen ("slide" is the original). */
     var pageAnim by mutableStateOf(prefs.getString("page_anim", PageAnim.SLIDE)!!)
@@ -227,7 +239,8 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun changePageAnim(v: String) { pageAnim = v; prefs.edit().putString("page_anim", v).apply() }
 
     /** Apply a home style and the look that goes with it (users can still tweak it after). */
-    fun applyHomeStyle(style: String) {
+    fun applyHomeStyle(style: String, shape: String? = null) {
+        if (org.driftvane.launcher.ui.isMorphLike(style)) { applyMorphLike(style, shape ?: iconShape.takeIf { it != "rounded" } ?: "squircle"); return }
         prefs.edit().putString("top_style", style).putBoolean("glance", true)
             .putString("icon_shape", "rounded").putString("icon_theme", IconTheme.ORIGINAL)
             .putString("dock_style", "clear").putBoolean("labels", style == "stock").putBoolean("grid_panel", false)
@@ -248,8 +261,51 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         reflowAll()
     }
 
-    fun finishSetup(homeStyle: String) {
-        applyHomeStyle(homeStyle)
+    /** Morph / Orbit: 4 columns, no labels, one tile shape for everything, outlined search bar. */
+    private fun applyMorphLike(style: String, shape: String) {
+        prefs.edit().putString("top_style", style).putBoolean("glance", true)
+            .putString("icon_shape", shape).putString("icon_theme", IconTheme.ORIGINAL)
+            .putString("dock_style", "clear").putBoolean("labels", false).putBoolean("grid_panel", false)
+            .putBoolean("search_pill", true).putBoolean("dots", true).putInt("columns", 4).putFloat("icon_scale", 1.12f)
+            .putString("library", LibraryStyle.DRAWER).apply()
+        topStyle = style
+        showGlance = true
+        iconShape = shape
+        dockStyle = "clear"
+        showLabels = false
+        gridPanel = false
+        searchPill = true
+        showDots = true
+        iconScale = 1.12f
+        libraryStyle = LibraryStyle.DRAWER
+        columns = 4
+        iconTheme = IconTheme.ORIGINAL
+        // built-in tiles: Morph starts with them on page one, Orbit has its own first page
+        for (i in pages.indices) pages[i] = pages[i].copy(widgets = pages[i].widgets.filter { it.id >= 0 })
+        if (style == "morph") {
+            ensurePage(0)
+            val r = iconRows(0)
+            val tiles = buildList {
+                add(WidgetItem(DT_MUSIC, 0, 0, 2, 2))
+                add(WidgetItem(DT_CLOCK, 2, 0, 2, 1))
+                add(WidgetItem(DT_DATE, 2, 1, 2, 1))
+                if (r >= 5) add(WidgetItem(DT_BATTERY, 0, r - 1, 4, 1))
+            }
+            pages[0] = pages[0].copy(widgets = tiles + pages[0].widgets)
+        }
+        reload()
+        reflowAll()
+    }
+
+    /** Put a built-in tile (negative id) back on [page]. */
+    fun addTile(id: Int, page: Int) {
+        if (allWidgetIds().contains(id)) return
+        val (sx, sy) = when (id) { DT_MUSIC -> 2 to 2; DT_BATTERY -> 4 to 1; else -> 2 to 1 }
+        addWidget(page, id, sy, sx.coerceAtMost(columns))
+    }
+
+    fun finishSetup(homeStyle: String, shape: String? = null) {
+        applyHomeStyle(homeStyle, shape)
         setupDone = true
         prefs.edit().putBoolean("setup_done", true).apply()
     }
@@ -332,11 +388,13 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     /** Cells icons can use on [page], in reading order. Icon i sits in freeCells[i]. */
     fun freeCells(page: Int): List<Int> = covered(page).withIndex().filter { !it.value }.map { it.index }
 
-    fun capacity(page: Int) = freeCells(page).size
+    private val orbitFirst get() = topStyle == "orbit" && showGlance
+    fun capacity(page: Int) = if (page == 0 && orbitFirst) ORBIT_RING else freeCells(page).size
 
     /** Can a widget sit at this spot on [page] without leaving the grid or overlapping another? */
     fun fits(page: Int, col: Int, row: Int, spanX: Int, spanY: Int, exceptId: Int? = null): Boolean {
         val r = iconRows(page); val c = columns
+        if (page == 0 && orbitFirst) return false // Orbit's first page is the ring, no widgets
         if (col < 0 || row < 0 || spanX < 1 || spanY < 1 || col + spanX > c || row + spanY > r) return false
         val grid = covered(page, exceptId)
         for (y in row until row + spanY) for (x in col until col + spanX) if (grid[y * c + x]) return false
@@ -819,7 +877,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         for (i in pages.indices) {
             if (pages[i].widgets.any { it.id == id }) {
                 pages[i] = pages[i].copy(widgets = pages[i].widgets.filter { it.id != id })
-                onWidgetRemoved?.invoke(id)
+                if (id >= 0) onWidgetRemoved?.invoke(id)
                 compact(); save(); return true
             }
         }

@@ -13,6 +13,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -51,6 +53,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -78,6 +81,8 @@ interface ItemHandler {
     fun dragStart(key: String, source: Source, at: Offset)
     fun dragMove(at: Offset)
     fun dragEnd()
+    /** Something was held long enough to start editing (widgets and tiles). */
+    fun enterEdit() {}
 }
 
 /** Bumped every time you come back home, so icons can cascade in. */
@@ -105,13 +110,17 @@ fun HomePage(
 ) {
     val cellH = cellHeight(model)
     val p = model.pages.getOrNull(page) ?: return
+    if (page == 0 && model.showGlance && model.topStyle == "orbit") {
+        Box(Modifier.fillMaxWidth().height(cellH * model.rows)) { OrbitPage(model, p.items, handler) }
+        return
+    }
     if (page == 0 && model.showGlance && model.topStyle == "columns") {
         // Columns style: info on the left, apps as a list on the right
         Box(Modifier.fillMaxWidth().height(cellH * model.rows)) { ColumnsPage(model, p.items, handler) }
         return
     }
     Column(Modifier.fillMaxWidth()) {
-        if (page == 0 && model.showGlance) {
+        if (page == 0 && model.showGlance && model.topRows() > 0) {
             Box(Modifier.fillMaxWidth().height(cellH * model.topRows()).padding(vertical = 6.dp)) {
                 when (model.topStyle) {
                     "bold" -> BoldClock(model, Modifier.align(Alignment.TopStart))
@@ -144,6 +153,8 @@ private fun WidgetCell(
     editMode: Boolean,
     cellW: Float,
     cellH: Float,
+    drag: DragState,
+    handler: ItemHandler,
     widget: @Composable (WidgetItem, Modifier) -> Unit,
 ) {
     key("w${w.id}") {
@@ -185,50 +196,124 @@ private fun WidgetCell(
             dl = 0f; dt = 0f; dr = 0f; db = 0f
         }
 
+        val shape = if (isMorphLike(model.topStyle)) tileShape(model.iconShape) else RoundedCornerShape(24.dp)
+        val editNow by rememberUpdatedState(editMode)
+        val view = androidx.compose.ui.platform.LocalView.current
+
+        /** Finger position on screen while the widget is lifted. */
+        fun fingerRoot(local: Offset): Offset {
+            val g = drag.grids[page]?.bounds?.topLeft ?: Offset.Zero
+            return g + Offset(pos.value.x.toFloat(), pos.value.y.toFloat()) + move.value + local
+        }
+        fun trackRemove(local: Offset) {
+            val over = drag.removeBounds != Rect.Zero && drag.removeBounds.inflate(28f).contains(fingerRoot(local))
+            if (over != drag.widgetOverRemove) {
+                drag.widgetOverRemove = over
+                if (over && model.haptics) view.performHapticFeedback(android.view.HapticFeedbackConstants.SEGMENT_TICK)
+            }
+        }
+        /** Let go: drop on Remove, flip pages past the edge, or snap to the nearest free spot. */
+        fun drop() {
+            val c = cur
+            val o = move.value
+            val overRemove = drag.widgetOverRemove
+            drag.widgetDrag = false
+            drag.widgetOverRemove = false
+            if (overRemove) {
+                if (model.haptics) view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+                model.removeWidget(c.id)
+                return
+            }
+            val screenW = cellW * model.columns
+            val x = c.col * cellW + o.x
+            var placed = false
+            when {
+                x + c.spanX * cellW * 0.5f > screenW + cellW * 0.4f -> model.moveWidgetPage(c.id, 1)
+                x + c.spanX * cellW * 0.5f < -cellW * 0.4f -> model.moveWidgetPage(c.id, -1)
+                else -> {
+                    val nc = ((c.col * cellW + o.x) / cellW).roundToInt().coerceIn(0, model.columns - c.spanX)
+                    val nr = ((c.row * cellH + o.y) / cellH).roundToInt().coerceIn(0, model.iconRows(page) - c.spanY)
+                    if (model.setWidgetRect(c.id, nc, nr, c.spanX, c.spanY)) {
+                        // the grid position animates there; drop the finger offset
+                        placed = true
+                        scope.launch {
+                            pos.snapTo(pos.value + IntOffset(o.x.roundToInt(), o.y.roundToInt()))
+                            move.snapTo(Offset.Zero)
+                        }
+                    }
+                }
+            }
+            if (!placed) scope.launch { move.animateTo(Offset.Zero, spring(dampingRatio = 0.75f, stiffness = 380f)) }
+        }
+
         Box(
             Modifier
                 .offset { pos.value + IntOffset((move.value.x + dl).roundToInt(), (move.value.y + dt).roundToInt()) }
                 .size(wDp, hDp)
                 .zIndex(if (active) 3f else 1f)
-                .graphicsLayer { rotationZ = if (active) 0f else angle * 0.35f; scaleX = lifted; scaleY = lifted }
+                .graphicsLayer {
+                    rotationZ = if (active) 0f else angle * 0.35f; scaleX = lifted; scaleY = lifted
+                    // shrink a little over the Remove pill
+                    if (drag.widgetOverRemove && move.value != Offset.Zero) { scaleX = 0.82f; scaleY = 0.82f; alpha = 0.7f }
+                }
+                // Hold a widget (outside edit mode) to lift it and drag it straight away. Watches the
+                // Initial pass so the widget's own taps still work until the long-press fires.
+                .pointerInput(w.id) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        if (editNow || model.lockLayout) return@awaitEachGesture
+                        val slopPx = viewConfiguration.touchSlop
+                        val early = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                            while (true) {
+                                val e = awaitPointerEvent(PointerEventPass.Initial)
+                                val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!c.pressed || (c.position - down.position).getDistance() > slopPx) break
+                            }
+                            true
+                        }
+                        if (early != null) return@awaitEachGesture
+                        if (model.haptics) view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                        handler.enterEdit()
+                        drag.widgetDrag = true
+                        var moved = false
+                        try {
+                            while (true) {
+                                val e = awaitPointerEvent(PointerEventPass.Initial)
+                                val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                                c.consume()
+                                if (!c.pressed) break
+                                val d = c.position - c.previousPosition
+                                if (d != Offset.Zero) {
+                                    moved = true
+                                    scope.launch { move.snapTo(move.value + d) }
+                                    trackRemove(c.position)
+                                }
+                            }
+                        } finally {
+                            if (moved) drop() else { drag.widgetDrag = false; drag.widgetOverRemove = false }
+                        }
+                    }
+                }
                 .padding(6.dp)
         ) {
-            widget(w, Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)))
+            val inner = Modifier.fillMaxSize().clip(shape)
+            if (w.id < 0) DriftTile(model, w, inner) else widget(w, inner)
             if (editMode) {
                 // body: drag to move
                 Box(
                     Modifier.fillMaxSize()
-                        .clip(RoundedCornerShape(24.dp))
+                        .clip(shape)
                         .background(Color(0x1AFFFFFF))
-                        .border(1.5.dp, Color.White.copy(alpha = if (active) 0.8f else 0.35f), RoundedCornerShape(24.dp))
+                        .border(1.5.dp, Color.White.copy(alpha = if (active) 0.8f else 0.35f), shape)
                         .pointerInput(w.id) {
                             detectDragGestures(
-                                onDrag = { c, d -> c.consume(); scope.launch { move.snapTo(move.value + d) } },
-                                onDragEnd = {
-                                    val c = cur
-                                    val o = move.value
-                                    val screenW = cellW * model.columns
-                                    val x = c.col * cellW + o.x
-                                    var placed = false
-                                    when {
-                                        x + c.spanX * cellW * 0.5f > screenW + cellW * 0.4f -> model.moveWidgetPage(c.id, 1)
-                                        x + c.spanX * cellW * 0.5f < -cellW * 0.4f -> model.moveWidgetPage(c.id, -1)
-                                        else -> {
-                                            val nc = ((c.col * cellW + o.x) / cellW).roundToInt().coerceIn(0, model.columns - c.spanX)
-                                            val nr = ((c.row * cellH + o.y) / cellH).roundToInt().coerceIn(0, model.iconRows(page) - c.spanY)
-                                            if (model.setWidgetRect(c.id, nc, nr, c.spanX, c.spanY)) {
-                                                // the grid position animates there; drop the finger offset
-                                                placed = true
-                                                scope.launch {
-                                                    pos.snapTo(pos.value + IntOffset(o.x.roundToInt(), o.y.roundToInt()))
-                                                    move.snapTo(Offset.Zero)
-                                                }
-                                            }
-                                        }
-                                    }
-                                    if (!placed) scope.launch { move.animateTo(Offset.Zero, spring(dampingRatio = 0.75f, stiffness = 380f)) }
+                                onDragStart = { drag.widgetDrag = true },
+                                onDrag = { c, d -> c.consume(); scope.launch { move.snapTo(move.value + d) }; trackRemove(c.position) },
+                                onDragEnd = { drop() },
+                                onDragCancel = {
+                                    drag.widgetDrag = false; drag.widgetOverRemove = false
+                                    scope.launch { move.animateTo(Offset.Zero, spring(0.75f)) }
                                 },
-                                onDragCancel = { scope.launch { move.animateTo(Offset.Zero, spring(0.75f)) } },
                             )
                         }
                 )
@@ -320,7 +405,7 @@ private fun HomeGrid(
             }
         }
 
-        widgets.forEach { w -> WidgetCell(model, page, w, editMode, cellW, cellH, widget) }
+        widgets.forEach { w -> WidgetCell(model, page, w, editMode, cellW, cellH, drag, handler, widget) }
         val angle = if (editMode) wiggleAngle() else 0f
         val order = previewOrder(items, page, drag.key, drag.hover)
         val ontoTarget = (drag.hover as? Hover.Onto)?.takeIf { it.page == page }?.target

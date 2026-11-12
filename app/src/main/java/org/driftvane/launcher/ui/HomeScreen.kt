@@ -22,6 +22,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -149,6 +150,10 @@ fun HomeScreen(
     var openFolder by remember { mutableStateOf<String?>(null) }
     var openCategory by remember { mutableStateOf<String?>(null) }
     var drawerOpen by remember { mutableStateOf(false) }
+    // How far the swipe-up drawer is open (0 closed, 1 open). It follows your finger.
+    val drawerReveal = remember { androidx.compose.animation.core.Animatable(0f) }
+    val screenH = with(density) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
+    var styleOpen by remember { mutableStateOf(false) }
 
     // Swipe-up drawer: pulling down at the top of the list drags the drawer down; let go to close.
     var drawerPull by remember { mutableFloatStateOf(0f) }
@@ -177,6 +182,9 @@ fun HomeScreen(
                 if (drawerPull <= 0f) return Velocity.Zero
                 val close = drawerPull > with(density) { 140.dp.toPx() } || available.y > 1800f
                 if (close) {
+                    // carry on from where your finger left it, then slide the rest of the way down
+                    drawerReveal.snapTo((1f - drawerPull / screenH).coerceIn(0f, 1f))
+                    drawerPull = 0f
                     drawerOpen = false
                 } else {
                     animate(drawerPull, 0f, animationSpec = spring(dampingRatio = 0.8f, stiffness = 420f)) { v, _ -> drawerPull = v }
@@ -189,10 +197,12 @@ fun HomeScreen(
     fun closeAll() {
         searchOpen = false; menuKey = null; homeMenu = false; settingsOpen = false
         widgetPicker = false; openFolder = null; openCategory = null; drawerOpen = false; editMode = false
+        styleOpen = false
     }
 
     fun hoverAt(pos: Offset): Hover {
         val k = drag.key ?: return Hover.None
+        if (drag.removeBounds != Rect.Zero && drag.removeBounds.inflate(28f).contains(pos) && drag.source !is Source.Library) return Hover.Remove
         if (model.showDock && drag.dockBounds.contains(pos)) {
             val n = model.dock.count { it != k }
             val slot = drag.dockBounds.width / (n + 1)
@@ -251,9 +261,13 @@ fun HomeScreen(
                 drag.pointer = at
                 val h = hoverAt(at)
                 if (h != drag.hover) {
-                    if (h is Hover.Onto || h is Hover.Dock) buzz(HapticFeedbackType.TextHandleMove)
+                    if (h is Hover.Onto || h is Hover.Dock || h is Hover.Remove) buzz(HapticFeedbackType.TextHandleMove)
                     drag.hover = h
                 }
+            }
+            override fun enterEdit() {
+                menuKey = null
+                editMode = true
             }
             override fun dragEnd() {
                 val k = drag.key
@@ -265,6 +279,10 @@ fun HomeScreen(
                     is Hover.Dock -> model.moveToDock(k, src, h.index)
                     is Hover.Insert -> model.moveToPage(k, src, h.page, h.index)
                     is Hover.Onto -> model.dropOnto(k, src, h.page, h.target)
+                    Hover.Remove -> {
+                        if (src is Source.InFolder) model.detach(k, src)
+                        model.removeFromHome(k)
+                    }
                     Hover.None -> Unit
                 }
                 drag.end()
@@ -312,10 +330,11 @@ fun HomeScreen(
     LaunchedEffect(model.lockLayout) { if (model.lockLayout) editMode = false }
 
     val anyOverlay = searchOpen || menuKey != null || homeMenu || widgetPicker || openFolder != null ||
-        openCategory != null || drawerOpen || settingsOpen
+        openCategory != null || drawerOpen || settingsOpen || styleOpen
     BackHandler(anyOverlay || editMode) {
         when {
             settingsOpen -> settingsOpen = false
+            styleOpen -> styleOpen = false
             widgetPicker -> widgetPicker = false
             menuKey != null -> menuKey = null
             homeMenu -> homeMenu = false
@@ -327,7 +346,7 @@ fun HomeScreen(
         }
     }
 
-    val blur by animateDpAsState(if (anyOverlay && !drag.active && !settingsOpen) 26.dp else 0.dp, tween(240), label = "blur")
+    val blur by animateDpAsState(if (anyOverlay && !drag.active && !settingsOpen && !styleOpen) 26.dp else 0.dp, tween(240), label = "blur")
     val pull = with(density) { 90.dp.toPx() }
     val onLibrary = pager.currentPage >= model.pages.size
 
@@ -355,19 +374,37 @@ fun HomeScreen(
     Box(Modifier.fillMaxSize()) {
         Box(
             Modifier.fillMaxSize()
+                .graphicsLayer {
+                    val p = (drawerReveal.value - drawerPull / screenH).coerceIn(0f, 1f)
+                    val sc = 1f - 0.06f * p
+                    scaleX = sc; scaleY = sc; alpha = 1f - 0.7f * p
+                }
                 .blur(blur)
                 .pointerInput(editMode, onLibrary, model.swipeDown, drawerMode) {
                     if (editMode || onLibrary) return@pointerInput
                     var dy = 0f
                     detectVerticalDragGestures(
                         onDragStart = { dy = 0f },
-                        onVerticalDrag = { _, d -> dy += d },
+                        onVerticalDrag = { _, d ->
+                            dy += d
+                            // the drawer comes up under your finger
+                            if (drawerMode && !drawerOpen) {
+                                val f = (-dy / screenH).coerceIn(0f, 1f)
+                                scope.launch { drawerReveal.snapTo(f) }
+                            }
+                        },
                         onDragEnd = {
                             if (dy > pull) when (model.swipeDown) {
                                 SwipeDown.SEARCH -> searchOpen = true
                                 SwipeDown.NOTIFICATIONS -> actions.expandNotifications()
                             }
-                            if (dy < -pull && drawerMode) drawerOpen = true
+                            if (drawerMode && !drawerOpen) {
+                                if (dy < -pull) drawerOpen = true
+                                else scope.launch { drawerReveal.animateTo(0f, spring(dampingRatio = 0.9f, stiffness = 500f)) }
+                            }
+                        },
+                        onDragCancel = {
+                            if (!drawerOpen) scope.launch { drawerReveal.animateTo(0f) }
                         },
                     )
                 }
@@ -441,11 +478,14 @@ fun HomeScreen(
                         }
                 ) {
                 // slim strip: page dots (or the Search pill if turned on); edit buttons float above it
-                Box(Modifier.fillMaxWidth().height(if (model.searchPill) 48.dp else 16.dp), contentAlignment = Alignment.Center) {
+                val morphBar = isMorphLike(model.topStyle) && model.searchPill
+                Box(Modifier.fillMaxWidth().height(if (morphBar) 62.dp else if (model.searchPill) 48.dp else 16.dp), contentAlignment = Alignment.Center) {
                     androidx.compose.animation.AnimatedVisibility(
-                        model.showDots && !editMode, enter = fadeIn(), exit = fadeOut(),
+                        (model.showDots || morphBar) && !editMode, enter = fadeIn(), exit = fadeOut(),
                     ) {
-                        if (model.searchPill) {
+                        if (morphBar) {
+                            MorphSearchBar(model, pageCount, pager.currentPage, pager.isScrollInProgress) { searchOpen = true }
+                        } else if (model.searchPill) {
                             SearchPill(model, pageCount, pager.currentPage, pager.isScrollInProgress) { searchOpen = true }
                         } else {
                             PageDots(pageCount, pager.currentPage, model.accent)
@@ -465,6 +505,7 @@ fun HomeScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Pill("+ Widget", Color(0x66FFFFFF).copy(alpha = 0.18f)) { widgetPicker = true }
+                            if (isMorphLike(model.topStyle)) Pill("Style", Color(0x66FFFFFF).copy(alpha = 0.18f)) { styleOpen = true }
                             Pill("Done", model.accent) { editMode = false }
                         }
                     }
@@ -475,6 +516,29 @@ fun HomeScreen(
             }
 
         }
+
+        // Remove pill at the top while something is lifted: drop an app, widget or tile on it
+        val lifting = drag.active || drag.widgetDrag
+        val overRemove = drag.hover is Hover.Remove || drag.widgetOverRemove
+        androidx.compose.animation.AnimatedVisibility(
+            editMode && lifting,
+            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 6.dp),
+            enter = fadeIn() + scaleIn(initialScale = 0.8f),
+            exit = fadeOut() + scaleOut(targetScale = 0.8f),
+        ) {
+            val grow by androidx.compose.animation.core.animateFloatAsState(if (overRemove) 1.12f else 1f, spring(0.55f), label = "rm")
+            Row(
+                Modifier.graphicsLayer { scaleX = grow; scaleY = grow }
+                    .onGloballyPositioned { drag.removeBounds = it.boundsInRoot() }
+                    .background(if (overRemove) Color(0xFFE5484D) else Color(0x40FF5A6A), RoundedCornerShape(50))
+                    .border(1.5.dp, if (overRemove) Color.White else Color(0x99FFB3BA), RoundedCornerShape(50))
+                    .padding(horizontal = 22.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Remove", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.W700)
+            }
+        }
+        LaunchedEffect(lifting) { if (!lifting) drag.removeBounds = Rect.Zero }
 
         // the icon under your finger while dragging
         val dk = drag.key
@@ -498,17 +562,17 @@ fun HomeScreen(
             val c = openCategory
             if (c != null) CategorySheet(model, c, handler)
         }
-        AnimatedVisibility(
-            drawerOpen,
-            enter = fadeIn() + slideInVertically(spring(dampingRatio = 0.85f, stiffness = 320f)) { it / 3 },
-            exit = fadeOut() + slideOutVertically { it / 3 },
-        ) {
+        LaunchedEffect(drawerOpen) {
+            if (drawerOpen) drawerReveal.animateTo(1f, spring(dampingRatio = 0.86f, stiffness = 380f))
+            else drawerReveal.animateTo(0f, spring(dampingRatio = 1f, stiffness = 420f))
+        }
+        if (drawerOpen || drawerReveal.value > 0.001f) {
             Box(
                 Modifier.fillMaxSize()
-                    .offset { IntOffset(0, drawerPull.toInt()) }
+                    .offset { IntOffset(0, ((1f - drawerReveal.value) * screenH + drawerPull).toInt()) }
                     .graphicsLayer {
                         alpha = if (hideForDrag && drag.source is Source.Library) 0f
-                        else 1f - (drawerPull / (screenW * 2f)).coerceIn(0f, 0.5f)
+                        else (0.4f + 0.6f * drawerReveal.value) - (drawerPull / (screenW * 2f)).coerceIn(0f, 0.5f)
                     }
                     .background(Color(0xD90B0A0D), RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                     .statusBarsPadding()
@@ -520,7 +584,7 @@ fun HomeScreen(
                 onEdit = { homeMenu = false; editMode = true },
                 onWidgets = { homeMenu = false; widgetPicker = true },
                 onSettings = { homeMenu = false; settingsOpen = true },
-                onWallpaper = { homeMenu = false; actions.openWallpaper() })
+                onWallpaper = { homeMenu = false; if (isMorphLike(model.topStyle)) styleOpen = true else actions.openWallpaper() })
         }
         Overlay(menuKey != null, onDismiss = { menuKey = null }, plain = true) {
             val k = menuKey
@@ -533,11 +597,17 @@ fun HomeScreen(
                 onClose = { menuKey = null })
         }
         Overlay(widgetPicker, onDismiss = { widgetPicker = false }, center = true) {
-            WidgetPicker(model, remember { actions.widgetProviders() }) { info ->
+            WidgetPicker(model, remember { actions.widgetProviders() }, onTile = { id ->
+                widgetPicker = false
+                model.addTile(id, pager.currentPage.coerceAtMost(model.pages.lastIndex))
+            }) { info ->
                 widgetPicker = false
                 editMode = false
                 actions.pickWidget(info, pager.currentPage.coerceAtMost(model.pages.lastIndex))
             }
+        }
+        Overlay(styleOpen, onDismiss = { styleOpen = false }) {
+            StyleSheet(model) { styleOpen = false; actions.openWallpaper() }
         }
         AnimatedVisibility(
             settingsOpen,
