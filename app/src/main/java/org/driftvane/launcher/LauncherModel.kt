@@ -227,7 +227,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         get() = when (topStyle) {
             "split", "stack" -> 2
             "stock" -> 1
-            "columns", "morph", "orbit" -> 0
+            "columns", "morph", "orbit", "bloom" -> 0
             else -> 3
         }
 
@@ -243,7 +243,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
 
     /** Home styles offered in setup (id to name). */
-    val homeStyles = listOf("morph" to "Morph", "orbit" to "Orbit")
+    val homeStyles = listOf("morph" to "Morph", "bloom" to "Bloom", "orbit" to "Orbit")
 
     /** The style Alex recommends (shown first in setup with a "Dev's Fav" tag). */
     val devFavStyle = "morph"
@@ -307,6 +307,18 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
                 add(WidgetItem(DT_DATE, 2, 1, 2, 1))
                 // battery right under the top tiles, above the apps
                 if (iconRows(0) >= 4) add(WidgetItem(DT_BATTERY, 0, 2, 4, 1))
+            }
+            pages[0] = pages[0].copy(widgets = tiles + pages[0].widgets)
+        } else if (style == "bloom") {
+            // Bloom: a giant clock on top, then music + alarm + battery under it
+            ensurePage(0)
+            val tiles = buildList {
+                add(WidgetItem(DT_CLOCK, 0, 0, 4, 2))
+                if (iconRows(0) >= 5) {
+                    add(WidgetItem(DT_MUSIC, 0, 2, 2, 2))
+                    add(WidgetItem(DT_DATE, 2, 2, 2, 1))
+                    add(WidgetItem(DT_BATTERY, 2, 3, 2, 1))
+                }
             }
             pages[0] = pages[0].copy(widgets = tiles + pages[0].widgets)
         }

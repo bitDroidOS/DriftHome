@@ -6,6 +6,13 @@ import android.content.Intent
 import android.provider.AlarmClock
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.text.withStyle
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.spring
@@ -108,7 +115,7 @@ object DriftTiles {
 }
 
 /** Home styles that use the Morph look (uniform tiles, outlined search bar). */
-fun isMorphLike(style: String) = style == "morph" || style == "orbit"
+fun isMorphLike(style: String) = style == "morph" || style == "orbit" || style == "bloom"
 
 /** The one shape every tile and widget uses, following the icon shape picked in Wallpaper & style. */
 fun tileShape(iconShape: String): Shape = when (iconShape) {
@@ -145,6 +152,7 @@ private fun openClockApp(context: Context) {
 /** Draws a built-in tile (called by the grid for widgets with a negative id). */
 @Composable
 fun DriftTile(model: LauncherModel, w: WidgetItem, modifier: Modifier) {
+    if (model.topStyle == "bloom") { BloomTile(model, w, modifier); return }
     val live = rememberLive()
     val context = LocalContext.current
     val shape = tileShape(model.iconShape)
@@ -298,13 +306,35 @@ fun MorphSearchBar(model: LauncherModel, count: Int, current: Int, swiping: Bool
     var showDots by remember { mutableStateOf(false) }
     LaunchedEffect(swiping, current) { if (swiping) showDots = true else { delay(900); showDots = false } }
     val shape = RoundedCornerShape(50)
+    val bloom = model.topStyle == "bloom"
+    val tones = bloomTones()
+    val tr = rememberInfiniteTransition(label = "bar")
+    val drift by tr.animateFloat(0f, 1f, infiniteRepeatable(tween(9000, easing = LinearEasing), RepeatMode.Reverse), label = "drift")
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val squish by animateFloatAsState(if (pressed) 0.96f else 1f, spring(0.45f, 600f), label = "sq")
     Box(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(50.dp)
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(56.dp)
+            .graphicsLayer { scaleX = squish; scaleY = squish }
             .clip(shape)
-            .background(Color.White.copy(alpha = 0.10f))
-            .border(1.8.dp, Color.White.copy(alpha = 0.92f), shape)
-            .clickable(remember { MutableInteractionSource() }, indication = null) { onSearch() }
-            .padding(horizontal = 18.dp),
+            .drawBehind {
+                if (bloom) {
+                    drawRect(tones.p.copy(alpha = 0.92f))
+                } else {
+                    // a slow moving Glow wash
+                    drawRect(Color(0xCC0B0A10))
+                    val w = size.width
+                    drawCircle(Brush.radialGradient(listOf(Color(0xCC5B3FC8), Color.Transparent),
+                        Offset(w * (0.1f + 0.5f * drift), 0f), w * 0.45f), w * 0.45f, Offset(w * (0.1f + 0.5f * drift), 0f))
+                    drawCircle(Brush.radialGradient(listOf(Color(0xCC0F5C63), Color.Transparent),
+                        Offset(w * (0.95f - 0.4f * drift), size.height), w * 0.4f), w * 0.4f, Offset(w * (0.95f - 0.4f * drift), size.height))
+                    drawCircle(Brush.radialGradient(listOf(Color(0x995A2346), Color.Transparent),
+                        Offset(w * 0.55f, size.height * 0.5f), w * 0.3f), w * 0.3f, Offset(w * 0.55f, size.height * 0.5f))
+                }
+            }
+            .border(1.2.dp, if (bloom) tones.accent.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.55f), shape)
+            .clickable(src, indication = null) { onSearch() }
+            .padding(start = 8.dp, end = 8.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
         AnimatedContent(
@@ -321,26 +351,49 @@ fun MorphSearchBar(model: LauncherModel, count: Int, current: Int, swiping: Bool
                     }
                 }
             } else {
+                val ink = if (bloom) tones.onP else Color.White
+                val badge = if (bloom) tones.accent else Color(0xFFEADDFF)
+                val onBadge = if (bloom) tones.p else Color(0xFF21005D)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Canvas(Modifier.size(17.dp)) {
-                        val r = size.minDimension * 0.34f
-                        val c = Offset(size.width * 0.42f, size.height * 0.42f)
-                        drawCircle(Color.White, r, c, style = Stroke(size.minDimension * 0.13f))
-                        drawLine(Color.White, c + Offset(r * 0.72f, r * 0.72f), Offset(size.width * 0.92f, size.height * 0.92f),
-                            size.minDimension * 0.14f, StrokeCap.Round)
+                    // round search badge that gives a little wiggle now and then
+                    val wig by tr.animateFloat(-8f, 8f, infiniteRepeatable(tween(1600), RepeatMode.Reverse), label = "wig")
+                    Box(Modifier.size(40.dp).graphicsLayer { rotationZ = wig }.clip(CircleShape).background(badge),
+                        contentAlignment = Alignment.Center) {
+                        Canvas(Modifier.size(18.dp)) {
+                            val r = size.minDimension * 0.33f
+                            val c = Offset(size.width * 0.42f, size.height * 0.42f)
+                            drawCircle(onBadge, r, c, style = Stroke(size.minDimension * 0.15f))
+                            drawLine(onBadge, c + Offset(r * 0.72f, r * 0.72f), Offset(size.width * 0.92f, size.height * 0.92f),
+                                size.minDimension * 0.16f, StrokeCap.Round)
+                        }
                     }
-                    Spacer(Modifier.width(10.dp))
-                    Text("Search", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.W600)
-                    Spacer(Modifier.weight(1f))
-                    // mic glyph
-                    Canvas(Modifier.size(16.dp)) {
-                        val w = size.width
-                        drawRoundRect(Color.White, topLeft = Offset(w * 0.34f, 0f),
-                            size = androidx.compose.ui.geometry.Size(w * 0.32f, size.height * 0.62f),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.16f))
-                        drawArc(Color.White, 0f, 180f, false, topLeft = Offset(w * 0.18f, size.height * 0.22f),
-                            size = androidx.compose.ui.geometry.Size(w * 0.64f, size.height * 0.56f), style = Stroke(w * 0.1f))
-                        drawLine(Color.White, Offset(w / 2, size.height * 0.78f), Offset(w / 2, size.height), w * 0.1f)
+                    Spacer(Modifier.width(12.dp))
+                    // the hint changes every few seconds
+                    val hints = remember { listOf("Search", "Find an app", "Look up anything", "Jump to a setting") }
+                    var hint by remember { mutableStateOf(0) }
+                    LaunchedEffect(Unit) { while (true) { delay(3200); hint = (hint + 1) % hints.size } }
+                    AnimatedContent(
+                        hint,
+                        transitionSpec = {
+                            (fadeIn(tween(260)) + androidx.compose.animation.slideInVertically(spring(0.75f, 400f)) { it }) togetherWith
+                                (fadeOut(tween(160)) + androidx.compose.animation.slideOutVertically(tween(200)) { -it })
+                        },
+                        label = "hint",
+                        modifier = Modifier.weight(1f),
+                    ) { h ->
+                        Text(hints[h], color = ink, fontSize = 16.sp, fontWeight = FontWeight.W600, maxLines = 1)
+                    }
+                    // mic in its own little bubble
+                    Box(Modifier.size(40.dp).clip(CircleShape).background(ink.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                        Canvas(Modifier.size(16.dp)) {
+                            val w = size.width
+                            drawRoundRect(ink, topLeft = Offset(w * 0.34f, 0f),
+                                size = androidx.compose.ui.geometry.Size(w * 0.32f, size.height * 0.62f),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.16f))
+                            drawArc(ink, 0f, 180f, false, topLeft = Offset(w * 0.18f, size.height * 0.22f),
+                                size = androidx.compose.ui.geometry.Size(w * 0.64f, size.height * 0.56f), style = Stroke(w * 0.1f))
+                            drawLine(ink, Offset(w / 2, size.height * 0.78f), Offset(w / 2, size.height), w * 0.1f)
+                        }
                     }
                 }
             }
@@ -583,4 +636,219 @@ private fun StyleButton(text: String, selected: Boolean, accent: Color, modifier
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Text(text, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.W600) }
+}
+
+// ------------------------------------------------------------------------------------- Bloom
+
+/** Material You colors pulled from the wallpaper (dark tones, so white-ish text works). */
+data class BloomTones(
+    val p: Color, val onP: Color,
+    val s: Color, val onS: Color,
+    val t: Color, val onT: Color,
+    val accent: Color,
+)
+
+@Composable
+fun bloomTones(): BloomTones {
+    val context = LocalContext.current
+    val conf = androidx.compose.ui.platform.LocalConfiguration.current
+    return remember(conf) {
+        fun g(id: Int, fallback: Long) = runCatching { Color(context.getColor(id)) }.getOrElse { Color(fallback) }
+        BloomTones(
+            p = g(android.R.color.system_accent1_700, 0xFF4F378B), onP = g(android.R.color.system_accent1_100, 0xFFEADDFF),
+            s = g(android.R.color.system_accent2_700, 0xFF4A4458), onS = g(android.R.color.system_accent2_100, 0xFFE8DEF8),
+            t = g(android.R.color.system_accent3_700, 0xFF633B48), onT = g(android.R.color.system_accent3_100, 0xFFFFD8E4),
+            accent = g(android.R.color.system_accent1_200, 0xFFD0BCFF),
+        )
+    }
+}
+
+/** The Material 3 Expressive scalloped "cookie". */
+class CookieShape(private val lobes: Int = 9, private val depth: Float = 0.07f) : Shape {
+    override fun createOutline(
+        size: androidx.compose.ui.geometry.Size,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        density: androidx.compose.ui.unit.Density,
+    ): androidx.compose.ui.graphics.Outline {
+        val p = androidx.compose.ui.graphics.Path()
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val r0 = minOf(cx, cy)
+        val steps = 180
+        for (i in 0..steps) {
+            val th = 2.0 * Math.PI * i / steps
+            val r = r0 * (1f - depth + depth * kotlin.math.cos(lobes * th).toFloat())
+            val x = cx + r * kotlin.math.cos(th).toFloat()
+            val y = cy + r * kotlin.math.sin(th).toFloat()
+            if (i == 0) p.moveTo(x, y) else p.lineTo(x, y)
+        }
+        p.close()
+        return androidx.compose.ui.graphics.Outline.Generic(p)
+    }
+}
+
+/** Bloom: big solid Material You tiles, a giant clock and spinning cookies. */
+@Composable
+private fun BloomTile(model: LauncherModel, w: WidgetItem, modifier: Modifier) {
+    val live = rememberLive()
+    val context = LocalContext.current
+    val shape = tileShape(model.iconShape)
+    val tones = bloomTones()
+    val tr = rememberInfiniteTransition(label = "bloom")
+    val spin by tr.animateFloat(0f, 360f, infiniteRepeatable(tween(24000, easing = LinearEasing)), label = "spin")
+    // tiles pop in one after another
+    val enter = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(70L * (-w.id).coerceIn(0, 6))
+        enter.animateTo(1f, spring(0.55f, 380f))
+    }
+    val pop = Modifier.graphicsLayer {
+        val e = enter.value
+        scaleX = 0.8f + 0.2f * e; scaleY = 0.8f + 0.2f * e; alpha = e.coerceIn(0f, 1f)
+    }
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val sq by animateFloatAsState(if (pressed) 0.95f else 1f, spring(0.45f, 600f), label = "sq")
+    val press = Modifier.graphicsLayer { scaleX = sq; scaleY = sq }
+    when (w.id) {
+        DriftTiles.CLOCK -> Box(
+            modifier.then(pop).then(press).clip(shape).background(tones.p)
+                .clickable(src, indication = null) { openClockApp(context) },
+        ) {
+            val big = w.spanY >= 2
+            // giant cookie with today's date, slowly turning
+            Box(
+                Modifier.align(Alignment.CenterEnd).offset(x = if (big) 18.dp else 24.dp)
+                    .size(if (big) 150.dp else 84.dp).graphicsLayer { rotationZ = spin }
+                    .clip(CookieShape()).background(tones.accent),
+            )
+            Column(Modifier.align(Alignment.CenterEnd).padding(end = if (big) 30.dp else 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(SimpleDateFormat("d", Locale.getDefault()).format(Date()), color = tones.p,
+                    fontSize = if (big) 44.sp else 24.sp, fontWeight = FontWeight.W800, lineHeight = if (big) 44.sp else 24.sp)
+                Text(SimpleDateFormat("MMM", Locale.getDefault()).format(Date()).uppercase(), color = tones.p,
+                    fontSize = if (big) 13.sp else 10.sp, fontWeight = FontWeight.W700, letterSpacing = 2.sp)
+            }
+            Column(Modifier.align(Alignment.CenterStart).padding(start = 20.dp)) {
+                val parts = live.time.split(":")
+                Text(
+                    androidx.compose.ui.text.buildAnnotatedString {
+                        withStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.W300)) { append(parts.getOrElse(0) { "" }) }
+                        withStyle(androidx.compose.ui.text.SpanStyle(color = tones.accent, fontWeight = FontWeight.W300)) { append(":") }
+                        withStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.W800)) { append(parts.getOrElse(1) { "" }) }
+                    },
+                    color = tones.onP, fontSize = if (big) 76.sp else 38.sp, lineHeight = if (big) 78.sp else 40.sp, maxLines = 1,
+                )
+                Text(SimpleDateFormat("EEEE", Locale.getDefault()).format(Date()), color = tones.onP.copy(alpha = 0.75f),
+                    fontSize = if (big) 16.sp else 11.sp, fontWeight = FontWeight.W600)
+            }
+        }
+        DriftTiles.DATE -> {
+            val alarm by produceState(nextAlarm(context)) { while (true) { value = nextAlarm(context); delay(60_000) } }
+            Row(
+                modifier.then(pop).then(press).clip(shape).background(tones.accent)
+                    .clickable(src, indication = null) { openClockApp(context) }
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(34.dp).graphicsLayer { rotationZ = -spin * 2 }.clip(CookieShape(6, 0.1f)).background(tones.p),
+                    contentAlignment = Alignment.Center) {
+                    Text("⏰", fontSize = 14.sp, modifier = Modifier.graphicsLayer { rotationZ = spin * 2 })
+                }
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(if (alarm != null) "Alarm" else "No alarms", color = tones.p.copy(alpha = 0.8f), fontSize = 11.sp, fontWeight = FontWeight.W700)
+                    Text(alarm ?: "Sleep in", color = tones.p, fontSize = 18.sp, fontWeight = FontWeight.W800, maxLines = 1)
+                }
+            }
+        }
+        DriftTiles.MUSIC -> {
+            var tick by remember { mutableStateOf(0) }
+            val media by produceState<Pair<NowPlaying, Boolean>?>(null, tick) {
+                while (true) { value = mediaNow(context); delay(800) }
+            }
+            val np = media?.first
+            val playing = media?.second == true
+            val art = remember(np?.art) { np?.art?.asImageBitmap() }
+            val ctl = np?.controller?.transportControls
+            val turn = remember { Animatable(0f) }
+            LaunchedEffect(playing) {
+                while (playing) { turn.animateTo(turn.value + 360f, tween(8000, easing = LinearEasing)) }
+            }
+            Box(
+                modifier.then(pop).then(press).clip(shape).background(tones.s)
+                    .clickable(src, indication = null) {
+                        if (np != null) openPlayer(context, np) else if (!live.access) openMediaAccessSettings(context)
+                    }
+                    .padding(14.dp),
+            ) {
+                Box(Modifier.align(Alignment.TopStart).size(if (w.spanY >= 2) 74.dp else 40.dp)
+                    .graphicsLayer { rotationZ = turn.value }.clip(CookieShape()).background(tones.t),
+                    contentAlignment = Alignment.Center) {
+                    if (art != null) Image(art, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    else Text("♪", color = tones.onT, fontSize = 24.sp)
+                }
+                if (np != null) {
+                    Box(
+                        Modifier.align(Alignment.TopEnd).size(44.dp).bloomBounce {
+                            runCatching { if (playing) ctl?.pause() else ctl?.play() }; tick++
+                        }.clip(RoundedCornerShape(if (playing) 14.dp else 22.dp)).background(tones.onS),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Canvas(Modifier.size(18.dp)) { if (playing) pauseGlyph(tones.s) else playGlyph(tones.s) }
+                    }
+                }
+                Column(Modifier.align(Alignment.BottomStart).fillMaxWidth()) {
+                    Text(
+                        when { np != null -> np.title; !live.access -> "Tap to show music"; else -> "Nothing playing" },
+                        color = tones.onS, fontSize = 16.sp, fontWeight = FontWeight.W800, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    if (np != null && np.artist.isNotBlank()) {
+                        Text(np.artist, color = tones.onS.copy(alpha = 0.75f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+        else -> { // battery: a wavy Material 3 Expressive progress line
+            val low = live.battery <= 15 && !live.charging
+            val phase by tr.animateFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(if (live.charging) 900 else 2600, easing = LinearEasing)), label = "wave")
+            val lvl by animateFloatAsState(live.battery / 100f, spring(0.7f, 120f), label = "lvl")
+            Row(
+                modifier.then(pop).clip(shape).background(if (low) Color(0xFF8C1D18) else tones.t).padding(horizontal = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(if (live.charging) "⚡" else "${live.battery}", color = tones.onT, fontSize = 18.sp, fontWeight = FontWeight.W800)
+                Spacer(Modifier.width(12.dp))
+                Canvas(Modifier.weight(1f).height(18.dp)) {
+                    val mid = size.height / 2
+                    val end = size.width * lvl
+                    val amp = size.height * 0.28f
+                    val path = androidx.compose.ui.graphics.Path()
+                    var x = 0f
+                    path.moveTo(0f, mid)
+                    while (x <= end) {
+                        path.lineTo(x, mid + amp * kotlin.math.sin(x / (size.height * 0.9f) + phase))
+                        x += 2f
+                    }
+                    drawPath(path, tones.onT, style = Stroke(size.height * 0.22f, cap = StrokeCap.Round))
+                    if (end < size.width - 8f) {
+                        drawLine(tones.onT.copy(alpha = 0.3f), Offset(end + 10f, mid), Offset(size.width, mid),
+                            size.height * 0.22f, StrokeCap.Round)
+                    }
+                }
+                if (live.charging) {
+                    Spacer(Modifier.width(10.dp))
+                    Text("${live.battery}%", color = tones.onT, fontSize = 14.sp, fontWeight = FontWeight.W700)
+                }
+            }
+        }
+    }
+}
+
+/** Squish on press, spring back with a bounce. */
+private fun Modifier.bloomBounce(onClick: () -> Unit): Modifier = androidx.compose.ui.composed {
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val s by animateFloatAsState(if (pressed) 0.82f else 1f, spring(0.4f, 600f), label = "bb")
+    this.graphicsLayer { scaleX = s; scaleY = s }.clickable(src, indication = null, onClick = onClick)
 }

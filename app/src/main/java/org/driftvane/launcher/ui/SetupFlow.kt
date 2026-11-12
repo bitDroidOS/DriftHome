@@ -139,9 +139,9 @@ fun SetupFlow(model: LauncherModel) {
                             Spacer(Modifier.height(22.dp))
                             Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                                 model.homeStyles.forEach { (id, name) ->
-                                    StyleCard(name, if (id == "morph") "Tiles you can move, resize and remove" else "Apps on a ring you spin",
+                                    StyleCard(name, when (id) { "morph" -> "Tiles you can move, resize and remove"; "bloom" -> "Big Material You tiles in your wallpaper's colors"; else -> "Apps on a ring you spin" },
                                         homeStyle == id, id == model.devFavStyle, Modifier.weight(1f).fillMaxHeight(), onClick = { homeStyle = id }) {
-                                        if (id == "orbit") OrbitPreview(shape) else MorphPreview(shape, accent)
+                                        when (id) { "orbit" -> OrbitPreview(shape); "bloom" -> BloomPreview(shape); else -> MorphPreview(shape, accent) }
                                     }
                                 }
                             }
@@ -154,7 +154,7 @@ fun SetupFlow(model: LauncherModel) {
                                     Modifier.fillMaxHeight().aspectRatio(0.5f).clip(RoundedCornerShape(26.dp))
                                         .background(Color(0x22FFFFFF)).border(1.5.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(26.dp))
                                         .padding(10.dp)
-                                ) { if (homeStyle == "orbit") OrbitPreview(shape) else MorphPreview(shape, accent) }
+                                ) { when (homeStyle) { "orbit" -> OrbitPreview(shape); "bloom" -> BloomPreview(shape); else -> MorphPreview(shape, accent) } }
                             }
                             Spacer(Modifier.height(18.dp))
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -317,6 +317,34 @@ private fun MorphPreview(shape: String, accent: Color) {
         Box(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(cell * 0.62f)
                 .clip(RoundedCornerShape(50)).border(1.5.dp, Color.White, RoundedCornerShape(50))
+        )
+    }
+}
+
+@Composable
+private fun BloomPreview(shape: String) {
+    val sh = tileShape(shape)
+    val t = bloomTones()
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val cell = maxWidth / 4
+        val g = 3.dp
+        Box(Modifier.size(cell * 4 - g, cell * 2 - g).clip(sh).background(t.p)) {
+            Box(Modifier.align(Alignment.CenterEnd).offset(x = cell * 0.2f).size(cell * 1.6f).clip(CookieShape()).background(t.accent))
+            Box(Modifier.align(Alignment.CenterStart).padding(start = cell * 0.25f).size(cell * 1.4f, cell * 0.5f)
+                .clip(RoundedCornerShape(50)).background(t.onP.copy(alpha = 0.85f)))
+        }
+        Box(Modifier.offset(0.dp, cell * 2).size(cell * 2 - g, cell * 2 - g).clip(sh).background(t.s)) {
+            Box(Modifier.padding(cell * 0.18f).size(cell * 0.8f).clip(CookieShape()).background(t.t))
+        }
+        Box(Modifier.offset(cell * 2, cell * 2).size(cell * 2 - g, cell - g).clip(sh).background(t.accent))
+        Box(Modifier.offset(cell * 2, cell * 3).size(cell * 2 - g, cell - g).clip(sh).background(t.t))
+        for (r in 0 until 2) for (c in 0 until 4) {
+            Box(Modifier.offset(cell * c + cell * 0.12f, cell * (4 + r) + cell * 0.12f).size(cell * 0.76f - g).clip(sh)
+                .background(previewIcons[(r * 4 + c) % previewIcons.size]))
+        }
+        Box(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(cell * 0.62f)
+                .clip(RoundedCornerShape(50)).background(t.p)
         )
     }
 }

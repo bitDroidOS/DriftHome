@@ -373,6 +373,7 @@ fun dockModifier(model: LauncherModel): Modifier = when (model.dockStyle) {
 private fun styleHint(id: String) = when (id) {
     "morph" -> "Tiles and apps in one shape; hold anything to move it"
     "orbit" -> "Apps on a ring around the clock; spin it"
+    "bloom" -> "Big Material You tiles in your wallpaper's colors, a giant clock"
     "frame" -> "Your wallpaper in a window with the clock"
     "split" -> "Swipeable cards on top, apps below"
     "stack" -> "A deck of cards you flick through"
