@@ -6,6 +6,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -293,6 +294,19 @@ fun WidgetPicker(
         Text("Tap one to add it to this page", color = Color(0xB3FFFFFF), fontSize = 14.sp, fontWeight = FontWeight.W500)
         Spacer(Modifier.height(14.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // the search bar, if it was removed
+            if (!model.searchPill) item(key = "search-bar") {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color(0x14FFFFFF))
+                    .clickable { onTile(DriftTiles.SEARCH) }.padding(14.dp)) {
+                    Text("Search bar", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.W700)
+                    Spacer(Modifier.height(10.dp))
+                    Box(Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(50))
+                        .border(1.2.dp, Color.White.copy(alpha = 0.55f), RoundedCornerShape(50)).background(Color(0x22FFFFFF)),
+                        contentAlignment = Alignment.CenterStart) {
+                        Text("Search", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.W600, modifier = Modifier.padding(start = 18.dp))
+                    }
+                }
+            }
             // DriftHome's own tiles (only the ones not already on a page)
             val placed = model.allWidgetIds().toSet()
             val tiles = DriftTiles.all.filter { it.first !in placed }

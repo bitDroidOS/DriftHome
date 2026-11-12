@@ -20,6 +20,8 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -89,7 +91,7 @@ fun SetupFlow(model: LauncherModel) {
     var homeStyle by remember { mutableStateOf(model.devFavStyle) }
     var shape by remember { mutableStateOf(model.iconShape.takeIf { it != "rounded" } ?: "squircle") }
     val heliboard = remember { runCatching { context.packageManager.getLaunchIntentForPackage(HELIBOARD_PKG) }.getOrNull() }
-    val last = 3
+    val last = 1
     BackHandler(enabled = step > 0) { step-- }
     val accent = model.accent
 
@@ -134,59 +136,19 @@ fun SetupFlow(model: LauncherModel) {
                 Column(Modifier.fillMaxSize()) {
                     when (s) {
                         0 -> Welcome()
-                        1 -> {
-                            Title("Pick your home", "You can switch any time from Wallpaper & style.")
-                            Spacer(Modifier.height(22.dp))
-                            Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                model.homeStyles.forEach { (id, name) ->
-                                    StyleCard(name, when (id) { "morph" -> "Tiles you can move, resize and remove"; "bloom" -> "Big Material You tiles in your wallpaper's colors"; else -> "Apps on a ring you spin" },
-                                        homeStyle == id, id == model.devFavStyle, Modifier.weight(1f).fillMaxHeight(), onClick = { homeStyle = id }) {
-                                        when (id) { "orbit" -> OrbitPreview(shape); "bloom" -> BloomPreview(shape); else -> MorphPreview(shape, accent) }
-                                    }
-                                }
-                            }
-                        }
-                        2 -> {
-                            Title("One shape", "Every tile, widget and icon uses it.")
-                            Spacer(Modifier.height(18.dp))
-                            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                                Box(
-                                    Modifier.fillMaxHeight().aspectRatio(0.5f).clip(RoundedCornerShape(26.dp))
-                                        .background(Color(0x22FFFFFF)).border(1.5.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(26.dp))
-                                        .padding(10.dp)
-                                ) { when (homeStyle) { "orbit" -> OrbitPreview(shape); "bloom" -> BloomPreview(shape); else -> MorphPreview(shape, accent) } }
-                            }
-                            Spacer(Modifier.height(18.dp))
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                listOf("squircle", "pebble", "rounded", "square", "circle").forEach { id ->
-                                    val sel = shape == id
-                                    val ring by animateColorAsState(if (sel) Color.White else Color.Transparent, label = "r")
-                                    Box(
-                                        Modifier.size(56.dp).border(2.dp, ring, tileShape(id)).padding(6.dp).clip(tileShape(id))
-                                            .background(if (sel) accent.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.16f))
-                                            .clickable { shape = id }
-                                    )
-                                }
-                            }
-                        }
                         else -> {
-                            Title("Last bits", "Optional. You can do these later.")
-                            Spacer(Modifier.height(22.dp))
-                            ActionCard(
-                                if (heliboard != null) "Set up HeliBoard" else "Keyboard settings",
-                                if (heliboard != null) "Themes, clipboard history, one-handed mode." else "Pick and manage your keyboards.",
-                            ) {
-                                runCatching {
-                                    context.startActivity((heliboard?.let { Intent(it) } ?: Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            Title("Make it yours", "Here's where everything lives.")
+                            Spacer(Modifier.height(18.dp))
+                            Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                TipCard("Home styles", "Hold an empty spot on the home screen, then Wallpaper & style. Pick Bloom, Morph or Orbit, your wallpaper and icon shape.")
+                                TipCard("Move or remove anything", "Hold a tile, a widget or the search bar to drag it around or drop it on Remove.")
+                                TipCard("Your apps", "Swipe up for all your apps. Swipe down for notifications.")
+                                ActionCard("${romName()} Enhancements", "Lock screen, glance bar, Quick Settings and more. It's the first thing in Settings.") {
+                                    runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                                 }
+                                ActionCard("Show what's playing", "Let the music tile see what's playing.") { openMediaAccessSettings(context) }
                             }
-                            Spacer(Modifier.height(12.dp))
-                            ActionCard("${romName()} Enhancements", "Lock screen, Quick Settings, volume panel and more. First item in Settings.") {
-                                runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                            }
-                            Spacer(Modifier.height(12.dp))
-                            ActionCard("Show what's playing", "Let the Now playing tile read your music.") { openMediaAccessSettings(context) }
                         }
                     }
                 }
@@ -199,7 +161,7 @@ fun SetupFlow(model: LauncherModel) {
                 }
                 Spacer(Modifier.weight(1f))
                 OutlinePill(if (step == 0) "Let's go" else if (step == last) "Done" else "Next", filled = step == last) {
-                    if (step < last) step++ else model.finishSetup(homeStyle, shape)
+                    if (step < last) step++ else model.finishSetup(model.devFavStyle, "squircle")
                 }
             }
         }
@@ -240,6 +202,18 @@ private fun OutlinePill(text: String, filled: Boolean, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 32.dp, vertical = 15.dp)
     ) { Text(text, color = if (filled) Ink else Color.White, fontSize = 16.sp, fontWeight = FontWeight.W700) }
+}
+
+@Composable
+private fun TipCard(title: String, desc: String) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color.White.copy(alpha = 0.08f))
+            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(24.dp)).padding(18.dp)
+    ) {
+        Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.W700)
+        Spacer(Modifier.height(4.dp))
+        Text(desc, color = Muted, fontSize = 14.sp, lineHeight = 20.sp)
+    }
 }
 
 @Composable

@@ -194,7 +194,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
     var glassStrength by mutableStateOf(prefs.getFloat("glass", 0.72f))
         private set
-    var iconShape by mutableStateOf(prefs.getString("icon_shape", "rounded")!!)
+    var iconShape by mutableStateOf(prefs.getString("icon_shape", "squircle")!!)
         private set
     var iconTheme by mutableStateOf(prefs.getString("icon_theme", IconTheme.OUTLINE)!!)
         private set
@@ -243,10 +243,10 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
 
     /** Home styles offered in setup (id to name). */
-    val homeStyles = listOf("morph" to "Morph", "bloom" to "Bloom", "orbit" to "Orbit")
+    val homeStyles = listOf("bloom" to "Bloom", "morph" to "Morph", "orbit" to "Orbit")
 
     /** The style Alex recommends (shown first in setup with a "Dev's Fav" tag). */
-    val devFavStyle = "morph"
+    val devFavStyle = "bloom"
 
     /** Page swipe animation on the home screen ("slide" is the original). */
     var pageAnim by mutableStateOf(prefs.getString("page_anim", PageAnim.SLIDE)!!)
@@ -328,6 +328,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
 
     /** Put a built-in tile (negative id) back on [page]. */
     fun addTile(id: Int, page: Int) {
+        if (id == org.driftvane.launcher.ui.DriftTiles.SEARCH) { changeSearchPill(true); return }
         if (allWidgetIds().contains(id)) return
         val (sx, sy) = when (id) { DT_MUSIC -> 2 to 2; DT_BATTERY -> 4 to 1; else -> 2 to 1 }
         addWidget(page, id, sy, sx.coerceAtMost(columns))

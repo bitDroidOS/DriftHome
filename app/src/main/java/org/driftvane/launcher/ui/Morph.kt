@@ -110,6 +110,8 @@ object DriftTiles {
     const val CLOCK = -2
     const val DATE = -3
     const val BATTERY = -4
+    /** Not a tile: puts the search bar back at the bottom. */
+    const val SEARCH = -9
     val all = listOf(MUSIC to "Now playing", CLOCK to "Clock", DATE to "Date & alarm", BATTERY to "Battery")
     /** Default size (spanX to spanY). */
     fun span(id: Int): Pair<Int, Int> = when (id) { MUSIC -> 2 to 2; BATTERY -> 4 to 1; else -> 2 to 1 }
@@ -302,6 +304,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.skipGlyph(c: Color,
  * The Morph search bar: wide, glassy, with a bold white outline. Turns into page dots while
  * you swipe between pages.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun MorphSearchBar(model: LauncherModel, count: Int, current: Int, swiping: Boolean, onSearch: () -> Unit) {
     var showDots by remember { mutableStateOf(false) }
@@ -313,10 +316,20 @@ fun MorphSearchBar(model: LauncherModel, count: Int, current: Int, swiping: Bool
     val drift by tr.animateFloat(0f, 1f, infiniteRepeatable(tween(9000, easing = LinearEasing), RepeatMode.Reverse), label = "drift")
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
-    val squish by animateFloatAsState(if (pressed) 0.96f else 1f, spring(0.45f, 600f), label = "sq")
+    // hold the bar: it lifts and a Remove button pops up over it (like removing a widget)
+    var lifted by remember { mutableStateOf(false) }
+    var removing by remember { mutableStateOf(false) }
+    LaunchedEffect(lifted) { if (lifted) { delay(4000); lifted = false } }
+    val squish by animateFloatAsState(
+        when { removing -> 0f; pressed -> 0.96f; lifted -> 1.04f; else -> 1f },
+        if (removing) tween(260) else spring(0.45f, 600f), label = "sq",
+        finishedListener = { if (removing) model.changeSearchPill(false) },
+    )
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    Box(Modifier.fillMaxWidth()) {
     Box(
         Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(56.dp)
-            .graphicsLayer { scaleX = squish; scaleY = squish }
+            .graphicsLayer { scaleX = squish; scaleY = squish; alpha = squish.coerceIn(0f, 1f) }
             .clip(shape)
             .drawBehind {
                 if (bloom) {
@@ -334,7 +347,14 @@ fun MorphSearchBar(model: LauncherModel, count: Int, current: Int, swiping: Bool
                 }
             }
             .border(1.2.dp, if (bloom) tones.accent.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.55f), shape)
-            .clickable(src, indication = null) { onSearch() }
+            .combinedClickable(
+                interactionSource = src, indication = null,
+                onClick = { if (lifted) lifted = false else onSearch() },
+                onLongClick = {
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    lifted = true
+                },
+            )
             .padding(start = 8.dp, end = 8.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -399,6 +419,28 @@ fun MorphSearchBar(model: LauncherModel, count: Int, current: Int, swiping: Bool
                 }
             }
         }
+    }
+    // the Remove button that pops out of the bar
+    androidx.compose.animation.AnimatedVisibility(
+        lifted && !removing,
+        modifier = Modifier.align(Alignment.Center),
+        enter = fadeIn(tween(120)) + scaleIn(spring(0.5f, 500f), initialScale = 0.5f),
+        exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.6f),
+    ) {
+        Row(
+            Modifier.clip(RoundedCornerShape(50)).background(Color(0xFFFFB4AB))
+                .clickable {
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    removing = true
+                }
+                .padding(horizontal = 18.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("✕", color = Color(0xFF690005), fontSize = 14.sp, fontWeight = FontWeight.W800)
+            Spacer(Modifier.width(8.dp))
+            Text("Remove search bar", color = Color(0xFF690005), fontSize = 14.sp, fontWeight = FontWeight.W700)
+        }
+    }
     }
 }
 
