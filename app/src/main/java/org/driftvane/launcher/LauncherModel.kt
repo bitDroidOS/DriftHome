@@ -57,7 +57,7 @@ object IconTheme {
     const val GLASS = "glass"
     const val MONO = "mono"
     const val OUTLINE = "outline"
-    val all = listOf(OUTLINE to "Drift outline", ORIGINAL to "Original", THEMED to "Themed", LIGHT to "Light", GLASS to "Clear", MONO to "Mono")
+    val all = listOf(OUTLINE to "Drift outline", ORIGINAL to "Original", THEMED to "Themed", LIGHT to "Light", MONO to "Mono")
 }
 
 /** A widget placed on the home grid: top-left cell ([col], [row]) and size in cells. */
@@ -196,7 +196,10 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
     var iconShape by mutableStateOf(prefs.getString("icon_shape", "squircle")!!)
         private set
-    var iconTheme by mutableStateOf(prefs.getString("icon_theme", IconTheme.OUTLINE)!!)
+    // bitDroid: glass icons are gone; anyone who had them gets the original icons
+    var iconTheme by mutableStateOf(prefs.getString("icon_theme", IconTheme.OUTLINE)!!.let {
+        if (it == IconTheme.GLASS) { prefs.edit().putString("icon_theme", IconTheme.ORIGINAL).apply(); IconTheme.ORIGINAL } else it
+    })
         private set
     var dockStyle by mutableStateOf(prefs.getString("dock_style", "line")!!)
         private set
@@ -549,7 +552,6 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             IconTheme.LIGHT -> { c.drawColor(0xFFF3F0F6.toInt()); mono(darken(accent)) }
             IconTheme.MONO -> { c.drawColor(0xFF19181D.toInt()); mono(0xFFF2F2F2.toInt()) }
             IconTheme.OUTLINE -> { c.drawColor(deep(accent)); mono(lighten(accent)) }
-            IconTheme.GLASS -> glassTile(c, d, s)
             else -> {
                 if (d is AdaptiveIconDrawable) {
                     d.background?.let { full(it) }
