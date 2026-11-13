@@ -92,6 +92,8 @@ class HomeActivity : ComponentActivity(), HomeActions {
     override fun onResume() {
         super.onResume()
         resumes.value = resumes.value + 1
+        // bitDroid: redraw Material You icons if the wallpaper's colors changed
+        runCatching { model.checkThemeColors() }
     }
 
     override fun onDestroy() {

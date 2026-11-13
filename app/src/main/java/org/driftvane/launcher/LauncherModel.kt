@@ -57,7 +57,8 @@ object IconTheme {
     const val GLASS = "glass"
     const val MONO = "mono"
     const val OUTLINE = "outline"
-    val all = listOf(OUTLINE to "Drift outline", ORIGINAL to "Original", THEMED to "Themed", LIGHT to "Light", MONO to "Mono")
+    const val MATERIAL_YOU = "materialyou"
+    val all = listOf(MATERIAL_YOU to "Material You", OUTLINE to "Drift outline", ORIGINAL to "Original", THEMED to "Themed", LIGHT to "Light", MONO to "Mono")
 }
 
 /** A widget placed on the home grid: top-left cell ([col], [row]) and size in cells. */
@@ -157,6 +158,10 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         if (prefs.getInt("look", 0) < 13) {
             // 0.14: the Bento App Library in a swipe-up drawer is the new default
             prefs.edit().putInt("look", 13).putString("library", LibraryStyle.BENTO).apply()
+        }
+        if (prefs.getInt("look", 0) < 14) {
+            // 0.15: Material You icons (every app on the wallpaper's light tone) are the new default
+            prefs.edit().putInt("look", 14).putString("icon_theme", IconTheme.MATERIAL_YOU).apply()
         }
     }
 
@@ -288,7 +293,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     /** Morph / Orbit: 4 columns, no labels, one tile shape for everything, outlined search bar. */
     private fun applyMorphLike(style: String, shape: String) {
         prefs.edit().putString("top_style", style).putBoolean("glance", true)
-            .putString("icon_shape", shape).putString("icon_theme", IconTheme.ORIGINAL)
+            .putString("icon_shape", shape).putString("icon_theme", IconTheme.MATERIAL_YOU)
             .putString("dock_style", "clear").putBoolean("labels", false).putBoolean("grid_panel", false)
             .putBoolean("search_pill", true).putBoolean("dots", true).putInt("columns", 4).putFloat("icon_scale", 1.26f)
             .putString("swipe_down", SwipeDown.NOTIFICATIONS)
@@ -305,7 +310,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         swipeDown = SwipeDown.NOTIFICATIONS
         libraryStyle = LibraryStyle.BENTO
         columns = 4
-        iconTheme = IconTheme.ORIGINAL
+        iconTheme = IconTheme.MATERIAL_YOU
         // built-in tiles: Morph starts with them on page one, Orbit has its own first page
         for (i in pages.indices) pages[i] = pages[i].copy(widgets = pages[i].widgets.filter { it.id >= 0 })
         if (style == "morph") {
@@ -353,6 +358,14 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun restartSetup() {
         setupDone = false
         prefs.edit().putBoolean("setup_done", false).apply()
+    }
+
+    /** bitDroid: Material You icons follow the wallpaper, so redraw them when its colors change. */
+    private var lastThemeTone = 0
+    fun checkThemeColors() {
+        val tone = runCatching { context.getColor(android.R.color.system_accent1_100) }.getOrDefault(0)
+        if (lastThemeTone != 0 && tone != lastThemeTone && iconTheme == IconTheme.MATERIAL_YOU) reload()
+        lastThemeTone = tone
     }
 
     fun changeAccent(i: Int) {
@@ -556,6 +569,12 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             }
         }
         when (iconTheme) {
+            // bitDroid: every app on the wallpaper's light Material You tone with a deep ink symbol,
+            // like the system apps and the home screen widgets
+            IconTheme.MATERIAL_YOU -> {
+                c.drawColor(context.getColor(android.R.color.system_accent1_100))
+                mono(context.getColor(android.R.color.system_accent1_800))
+            }
             IconTheme.THEMED -> { c.drawColor(0xFF23202C.toInt()); mono(lighten(accent)) }
             IconTheme.LIGHT -> { c.drawColor(0xFFF3F0F6.toInt()); mono(darken(accent)) }
             IconTheme.MONO -> { c.drawColor(0xFF19181D.toInt()); mono(0xFFF2F2F2.toInt()) }

@@ -388,6 +388,7 @@ private fun libraryName(id: String) = when (id) {
     LibraryStyle.FOLDERS -> "Folders"; LibraryStyle.CARDS -> "Category cards"; LibraryStyle.LIST -> "A–Z list"; LibraryStyle.DRAWER -> "Swipe-up drawer"; LibraryStyle.BENTO -> "Bento"; else -> "Smart categories"
 }
 private fun themeHint(id: String) = when (id) {
+    IconTheme.MATERIAL_YOU -> "Every app on your wallpaper's lilac, like the system apps"
     IconTheme.THEMED -> "Icons tinted with your accent color"
     IconTheme.LIGHT -> "Light tiles, colored symbols"
     IconTheme.GLASS -> "App symbols on a clear tile"
