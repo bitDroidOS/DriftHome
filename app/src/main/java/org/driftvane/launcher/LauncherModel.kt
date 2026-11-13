@@ -707,19 +707,21 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     private fun essentials(): List<String> {
         fun cat(c: String) = resolveDefault(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, c))
         fun pkg(vararg names: String) = names.firstNotNullOfOrNull { n -> apps.values.firstOrNull { it.component.packageName == n }?.key }
+        // bitDroid: a fresh home screen starts with all the bit-themed apps (the dock stays as is:
+        // phone, messages, AlexLMP, camera). Each falls back to whatever app handles that job.
         val picks = listOfNotNull(
-            pkg("com.google.android.apps.photos") ?: cat(Intent.CATEGORY_APP_GALLERY),
-            pkg("com.google.android.calendar") ?: cat(Intent.CATEGORY_APP_CALENDAR),
-            pkg("com.google.android.deskclock", "com.android.deskclock"),
-            pkg("com.google.android.gm") ?: cat(Intent.CATEGORY_APP_EMAIL),
-            // bitDroid: bitMaps is the maps app on home (Google Maps only if bitMaps isn't there)
-            pkg("com.bitdroid.maps", "com.google.android.apps.maps") ?: cat(Intent.CATEGORY_APP_MAPS),
-            apps.values.firstOrNull { it.label.contains("alexlmp", ignoreCase = true) }?.key ?: cat(Intent.CATEGORY_APP_MUSIC),
-            pkg("com.google.android.youtube"),
-            pkg("com.android.vending"),
-            cat(Intent.CATEGORY_APP_FILES),
-            cat(Intent.CATEGORY_APP_CALCULATOR),
+            pkg("com.bitdroid.maps") ?: cat(Intent.CATEGORY_APP_MAPS),
+            pkg("org.lineageos.glimpse") ?: cat(Intent.CATEGORY_APP_GALLERY),
+            pkg("org.lineageos.etar", "ws.xsoh.etar") ?: cat(Intent.CATEGORY_APP_CALENDAR),
+            pkg("com.android.deskclock", "com.google.android.deskclock"),
+            pkg("com.android.contacts") ?: cat(Intent.CATEGORY_APP_CONTACTS),
+            pkg("org.lineageos.jelly") ?: cat(Intent.CATEGORY_APP_BROWSER),
+            pkg("org.lineageos.recorder"),
+            pkg("com.android.documentsui", "com.google.android.documentsui") ?: cat(Intent.CATEGORY_APP_FILES),
+            pkg("com.android.calculator2") ?: cat(Intent.CATEGORY_APP_CALCULATOR),
             pkg("com.android.settings"),
+            pkg("com.android.vending"),
+            pkg("com.google.android.youtube"),
         )
         return picks.distinct().filter { it !in dock }.take(15)
     }
