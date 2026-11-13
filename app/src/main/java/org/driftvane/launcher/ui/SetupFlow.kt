@@ -150,6 +150,30 @@ fun SetupFlow(model: LauncherModel) {
                             Spacer(Modifier.height(18.dp))
                             Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                // bitDroid: one tap to the system color picker, with Vibrant recommended
+                                ActionCard(
+                                    "Colors: Vibrant (recommended)",
+                                    "bitDroid looks best with the Vibrant color style. Tap to open Wallpaper & style, then Color.",
+                                ) {
+                                    val opened = runCatching {
+                                        context.startActivity(
+                                            android.content.Intent("com.android.customization.action.SET_WALLPAPER_COLORS")
+                                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        )
+                                    }.isSuccess || runCatching {
+                                        context.startActivity(
+                                            android.content.Intent(android.content.Intent.ACTION_SET_WALLPAPER)
+                                                .setPackage("com.android.wallpaper")
+                                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        )
+                                    }.isSuccess
+                                    if (!opened) runCatching {
+                                        context.startActivity(
+                                            android.content.Intent(android.content.Intent.ACTION_SET_WALLPAPER)
+                                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        )
+                                    }
+                                }
                                 TipCard("Change your look", "Hold an empty spot on the home screen, then Wallpaper & style. Switch between Bloom, Morph and Orbit, or change your wallpaper and icon shape.")
                                 TipCard("Move or remove anything", "Hold a tile, a widget or the search bar to drag it around or drop it on Remove.")
                                 TipCard("Your apps", "Swipe up for all your apps. Swipe down for notifications.")
