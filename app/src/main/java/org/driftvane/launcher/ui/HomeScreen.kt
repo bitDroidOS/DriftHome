@@ -356,8 +356,8 @@ fun HomeScreen(
             homeMenu -> homeMenu = false
             openFolder != null -> openFolder = null
             openCategory != null -> openCategory = null
-            drawerOpen -> drawerOpen = false
             searchOpen -> searchOpen = false
+            drawerOpen -> drawerOpen = false
             else -> editMode = false
         }
     }
@@ -576,7 +576,6 @@ fun HomeScreen(
         }
 
         val hideForDrag = drag.active
-        Overlay(searchOpen) { SearchOverlay(model, actions::launch) { searchOpen = false } }
         Overlay(openFolder != null, onDismiss = { openFolder = null }, center = true, hidden = hideForDrag && drag.source is Source.InFolder) {
             val id = openFolder
             if (id != null) FolderOverlay(model, id, handler)
@@ -598,6 +597,8 @@ fun HomeScreen(
                     .nestedScroll(drawerScroll)
             ) { AppDrawer(model, handler, onClose = { drawerOpen = false }, onOpenCategory = { openCategory = it }) { searchOpen = true } }
         }
+        // search sits above the App Library, so searching from the drawer opens on top of it
+        Overlay(searchOpen) { SearchOverlay(model, actions::launch) { searchOpen = false } }
         Overlay(openCategory != null, onDismiss = { openCategory = null }, center = true, hidden = hideForDrag) {
             val c = openCategory
             if (c != null) CategorySheet(model, c, handler)

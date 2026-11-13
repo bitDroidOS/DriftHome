@@ -712,7 +712,8 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             pkg("com.google.android.calendar") ?: cat(Intent.CATEGORY_APP_CALENDAR),
             pkg("com.google.android.deskclock", "com.android.deskclock"),
             pkg("com.google.android.gm") ?: cat(Intent.CATEGORY_APP_EMAIL),
-            pkg("com.google.android.apps.maps") ?: cat(Intent.CATEGORY_APP_MAPS),
+            // bitDroid: bitMaps is the maps app on home (Google Maps only if bitMaps isn't there)
+            pkg("com.bitdroid.maps", "com.google.android.apps.maps") ?: cat(Intent.CATEGORY_APP_MAPS),
             apps.values.firstOrNull { it.label.contains("alexlmp", ignoreCase = true) }?.key ?: cat(Intent.CATEGORY_APP_MUSIC),
             pkg("com.google.android.youtube"),
             pkg("com.android.vending"),

@@ -12,8 +12,8 @@ android {
         applicationId = "org.driftvane.launcher"
         minSdk = 33
         targetSdk = 36
-        versionCode = 35
-        versionName = "0.14.3"
+        versionCode = 37
+        versionName = "0.14.5"
         manifestPlaceholders["appLabel"] = "bitHome"
     }
 
