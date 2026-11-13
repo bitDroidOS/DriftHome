@@ -11,6 +11,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -48,7 +50,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.driftvane.launcher.LauncherModel
 
-/** "Drift Search": swipe down on the home screen to find apps or search the web. */
+/**
+ * bitHome search, Bloom style: a big tonal search pill with a cookie search button, a "top hit"
+ * card when you type, your apps on soft Material You tiles, and a web search pill. Everything
+ * takes its colors from the wallpaper and pops in with a little bounce.
+ */
 @Composable
 fun SearchOverlay(model: LauncherModel, onLaunch: (String, Rect) -> Unit, onClose: () -> Unit) {
     val context = LocalContext.current
@@ -76,92 +82,169 @@ fun SearchOverlay(model: LauncherModel, onLaunch: (String, Rect) -> Unit, onClos
     }
 
     val suggested = remember(model.apps.size, model.hiddenApps.size) {
-        model.suggestions(4).ifEmpty { model.visibleApps().sortedBy { it.label.lowercase() }.take(4) }
+        model.suggestions(8).ifEmpty { model.visibleApps().sortedBy { it.label.lowercase() }.take(8) }
     }
-    val card = Color(0xFF1B1F27)
-    val hint = Color(0xFFB8BEC9)
+
+    // Material You tones from the wallpaper
+    val conf = androidx.compose.ui.platform.LocalConfiguration.current
+    val tone = remember(conf) {
+        fun g(id: Int, fb: Long) = runCatching { Color(context.getColor(id)) }.getOrElse { Color(fb) }
+        SearchTones(
+            scrim = g(android.R.color.system_neutral1_900, 0xFF141218).copy(alpha = 0.96f),
+            field = g(android.R.color.system_accent1_100, 0xFFEADDFF),
+            onField = g(android.R.color.system_accent1_900, 0xFF21005D),
+            primary = g(android.R.color.system_accent1_800, 0xFF381E72),
+            onPrimary = g(android.R.color.system_accent1_100, 0xFFEADDFF),
+            card = g(android.R.color.system_accent2_800, 0xFF332D41),
+            onCard = g(android.R.color.system_accent2_50, 0xFFF6EDFF),
+            sub = g(android.R.color.system_accent2_200, 0xFFCCC2DC),
+            hit = g(android.R.color.system_accent1_200, 0xFFD0BCFF),
+            onHit = g(android.R.color.system_accent1_900, 0xFF21005D),
+            web = g(android.R.color.system_accent3_100, 0xFFFFD8E4),
+            onWeb = g(android.R.color.system_accent3_900, 0xFF31111D),
+        )
+    }
+
+    // the whole screen springs in from a little above, then the results pop in one by one
+    val enter = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(Unit) {
+        enter.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.7f, stiffness = 340f))
+    }
+    fun Modifier.pop(i: Int) = this.graphicsLayer {
+        val e = ((enter.value - i * 0.06f) / 0.8f).coerceIn(0f, 1.2f)
+        alpha = e.coerceIn(0f, 1f)
+        scaleX = 0.9f + 0.1f * e; scaleY = 0.9f + 0.1f * e
+        translationY = (1f - e.coerceAtMost(1f)) * 24.dp.toPx()
+    }
 
     Box(
         Modifier.fillMaxSize()
-            .background(Color(0xF20B0E14))
+            .background(tone.scrim)
             .clickable(remember { MutableInteractionSource() }, indication = null) { onClose() }
     ) {
         Column(
             Modifier.fillMaxSize().statusBarsPadding().imePadding().padding(horizontal = 16.dp),
         ) {
-            Spacer(Modifier.height(12.dp))
-            // search field + Cancel
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Row(
-                    Modifier.weight(1f).height(46.dp).clip(RoundedCornerShape(14.dp)).background(card)
-                        .clickable(remember { MutableInteractionSource() }, indication = null) {}
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Glyph(G.SEARCH, hint, 19.dp)
-                    Spacer(Modifier.width(8.dp))
-                    Box(Modifier.weight(1f)) {
-                        if (query.isEmpty()) {
-                            Text("Search", color = hint, fontSize = 17.sp)
-                        }
-                        BasicTextField(
-                            value = query,
-                            onValueChange = { query = it },
-                            singleLine = true,
-                            textStyle = TextStyle(color = Color.White, fontSize = 17.sp),
-                            cursorBrush = SolidColor(model.accent),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(onSearch = {
-                                val first = results.firstOrNull()
-                                if (first != null && query.isNotBlank()) {
-                                    onLaunch(first.key, Rect.Zero); onClose()
-                                } else webSearch()
-                            }),
-                            modifier = Modifier.fillMaxWidth().focusRequester(focus),
-                        )
+            Spacer(Modifier.height(14.dp))
+            // the search pill: cookie search button, the field, and a round close button
+            Row(
+                Modifier.fillMaxWidth().height(60.dp).pop(0)
+                    .clip(RoundedCornerShape(30.dp)).background(tone.field)
+                    .clickable(remember { MutableInteractionSource() }, indication = null) {}
+                    .padding(start = 7.dp, end = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier.size(46.dp).clip(CookieShape()).background(tone.primary)
+                        .clickable { webSearch() },
+                    contentAlignment = Alignment.Center,
+                ) { Glyph(G.SEARCH, tone.onPrimary, 20.dp) }
+                Spacer(Modifier.width(12.dp))
+                Box(Modifier.weight(1f)) {
+                    if (query.isEmpty()) {
+                        Text("Search apps and the web", color = tone.onField.copy(alpha = 0.6f), fontSize = 17.sp,
+                            fontWeight = FontWeight.W500)
                     }
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        textStyle = TextStyle(color = tone.onField, fontSize = 18.sp, fontWeight = FontWeight.W600),
+                        cursorBrush = SolidColor(tone.primary),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = {
+                            val first = results.firstOrNull()
+                            if (first != null && query.isNotBlank()) {
+                                onLaunch(first.key, Rect.Zero); onClose()
+                            } else webSearch()
+                        }),
+                        modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                    )
                 }
-                Text("Cancel", color = model.accent, fontSize = 17.sp, fontWeight = FontWeight.W500,
-                    modifier = Modifier.clickable { onClose() }.padding(start = 14.dp, top = 8.dp, bottom = 8.dp))
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    Modifier.size(46.dp).clip(RoundedCornerShape(23.dp))
+                        .background(tone.onField.copy(alpha = 0.1f))
+                        .clickable { if (query.isNotEmpty()) query = "" else onClose() },
+                    contentAlignment = Alignment.Center,
+                ) { Text("✕", color = tone.onField, fontSize = 17.sp, fontWeight = FontWeight.W600) }
             }
             Spacer(Modifier.height(18.dp))
 
             val shown = if (query.isBlank()) suggested else results
-            Text(if (query.isBlank()) "Suggestions" else "Apps", color = Color.White,
-                fontSize = 20.sp, fontWeight = FontWeight.W700, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
+            val top = if (query.isNotBlank()) results.firstOrNull() else null
+
+            // top hit: the best match on its own big card, ready to open
+            if (top != null) {
+                Row(
+                    Modifier.fillMaxWidth().pop(1).clip(RoundedCornerShape(28.dp)).background(tone.hit)
+                        .clickable { onLaunch(top.key, Rect.Zero); onClose() }
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TapIcon(top, 56f, false) { r -> onLaunch(top.key, r); onClose() }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Top hit", color = tone.onHit.copy(alpha = 0.7f), fontSize = 13.sp, fontWeight = FontWeight.W600)
+                        Text(top.label, color = tone.onHit, fontSize = 20.sp, fontWeight = FontWeight.W700, maxLines = 1)
+                    }
+                    Box(
+                        Modifier.clip(RoundedCornerShape(50)).background(tone.primary)
+                            .padding(horizontal = 18.dp, vertical = 10.dp),
+                    ) { Text("Open", color = tone.onPrimary, fontSize = 15.sp, fontWeight = FontWeight.W700) }
+                }
+                Spacer(Modifier.height(14.dp))
+            }
+
+            val rest = if (top != null) shown.drop(1) else shown
+            Text(if (query.isBlank()) "Suggested for you" else if (rest.isEmpty() && top != null) "" else "Apps",
+                color = tone.sub, fontSize = 14.sp, fontWeight = FontWeight.W700, letterSpacing = 0.6.sp,
+                modifier = Modifier.pop(2).padding(start = 6.dp, bottom = 10.dp))
             if (shown.isEmpty()) {
-                Text("No apps found", color = hint, fontSize = 15.sp, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
-            } else {
+                Text("No apps match “$query”", color = tone.sub, fontSize = 15.sp,
+                    modifier = Modifier.pop(2).padding(start = 6.dp, bottom = 12.dp))
+            } else if (rest.isNotEmpty()) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(4),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 340.dp)
-                        .clip(RoundedCornerShape(20.dp)).background(card)
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).pop(3)
+                        .clip(RoundedCornerShape(30.dp)).background(tone.card)
                         .clickable(remember { MutableInteractionSource() }, indication = null) {}
-                        .padding(vertical = 14.dp),
+                        .padding(vertical = 18.dp),
                 ) {
-                    items(shown, key = { it.key }) { app ->
+                    items(rest, key = { it.key }) { app ->
                         Box(contentAlignment = Alignment.Center) {
-                            TapIcon(app, 56f, true) { r -> onLaunch(app.key, r); onClose() }
+                            TapIcon(app, 54f, true) { r -> onLaunch(app.key, r); onClose() }
                         }
                     }
                 }
             }
             if (query.isNotBlank()) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(14.dp))
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(card)
-                        .clickable { webSearch() }.padding(16.dp),
+                    Modifier.fillMaxWidth().pop(4).clip(RoundedCornerShape(30.dp)).background(tone.web)
+                        .clickable { webSearch() }.padding(horizontal = 10.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Glyph(G.SEARCH, model.accent, 20.dp)
+                    Box(
+                        Modifier.size(44.dp).clip(CookieShape()).background(tone.onWeb),
+                        contentAlignment = Alignment.Center,
+                    ) { Glyph(G.SEARCH, tone.web, 19.dp) }
                     Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text("Search the web", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.W600)
-                        Text("“$query”", color = hint, fontSize = 14.sp)
+                    Column(Modifier.weight(1f)) {
+                        Text("Search the web", color = tone.onWeb, fontSize = 16.sp, fontWeight = FontWeight.W700)
+                        Text("“$query”", color = tone.onWeb.copy(alpha = 0.7f), fontSize = 14.sp, maxLines = 1)
                     }
                 }
             }
         }
     }
 }
+
+/** Material You tones for the search screen. */
+private data class SearchTones(
+    val scrim: Color, val field: Color, val onField: Color,
+    val primary: Color, val onPrimary: Color,
+    val card: Color, val onCard: Color, val sub: Color,
+    val hit: Color, val onHit: Color, val web: Color, val onWeb: Color,
+)
