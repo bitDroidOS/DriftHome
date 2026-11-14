@@ -357,8 +357,10 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.skipGlyph(c: Color,
 fun MorphSearchBar(model: LauncherModel, count: Int, current: Int, swiping: Boolean, onSearch: () -> Unit) {
     var showDots by remember { mutableStateOf(false) }
     LaunchedEffect(swiping, current) { if (swiping) showDots = true else { delay(900); showDots = false } }
-    val shape = RoundedCornerShape(50)
-    val bloom = model.topStyle == "bloom"
+    // bitDroid Bloom: the bar is a scalloped pill in Material You tones, the search badge a
+    // turning cookie and the mic a clover, in every home style
+    val shape = remember { BloomPillShape() }
+    val bloom = true
     val tones = bloomTones()
     val tr = rememberInfiniteTransition(label = "bar")
     val drift by tr.animateFloat(0f, 1f, infiniteRepeatable(tween(9000, easing = LinearEasing), RepeatMode.Reverse), label = "drift")
@@ -425,9 +427,10 @@ fun MorphSearchBar(model: LauncherModel, count: Int, current: Int, swiping: Bool
                 val onBadge = if (bloom) tones.p else Color(0xFF21005D)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     // round search badge that gives a little wiggle now and then
-                    val wig by tr.animateFloat(-8f, 8f, infiniteRepeatable(tween(1600), RepeatMode.Reverse), label = "wig")
-                    Box(Modifier.size(40.dp).graphicsLayer { rotationZ = wig }.clip(CircleShape).background(badge),
-                        contentAlignment = Alignment.Center) {
+                    val spin by tr.animateFloat(0f, 360f, infiniteRepeatable(tween(14000, easing = LinearEasing)), label = "spin")
+                    Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
+                        Box(Modifier.matchParentSize().graphicsLayer { rotationZ = spin }
+                            .clip(remember { BloomCookieShape(9) }).background(badge))
                         Canvas(Modifier.size(18.dp)) {
                             val r = size.minDimension * 0.33f
                             val c = Offset(size.width * 0.42f, size.height * 0.42f)
@@ -453,7 +456,7 @@ fun MorphSearchBar(model: LauncherModel, count: Int, current: Int, swiping: Bool
                         Text(hints[h], color = ink, fontSize = 16.sp, fontWeight = FontWeight.W600, maxLines = 1)
                     }
                     // mic in its own little bubble
-                    Box(Modifier.size(40.dp).clip(CircleShape).background(ink.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(40.dp).clip(remember { BloomCookieShape(4, 0.2f) }).background(ink.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
                         Canvas(Modifier.size(16.dp)) {
                             val w = size.width
                             drawRoundRect(ink, topLeft = Offset(w * 0.34f, 0f),
