@@ -375,6 +375,7 @@ private fun styleHint(id: String) = when (id) {
     "morph" -> "Tiles and apps in one shape; hold anything to move it"
     "orbit" -> "Apps on a ring around the clock; spin it"
     "bloom" -> "Big Material You tiles in your wallpaper's colors, a giant clock"
+    "stock" -> "Classic: a plain stock look with no Material You, round icons, white search bar"
     "frame" -> "Your wallpaper in a window with the clock"
     "split" -> "Swipeable cards on top, apps below"
     "stack" -> "A deck of cards you flick through"

@@ -144,6 +144,10 @@ fun SetupFlow(model: LauncherModel) {
                                 StyleCard("Orbit", "Apps in a ring", homeStyle == "orbit", model.devFavStyle == "orbit",
                                     Modifier.weight(1f).fillMaxHeight(), onClick = { homeStyle = "orbit" }) { OrbitPreview(shape) }
                             }
+                            Spacer(Modifier.height(10.dp))
+                            // bitDroid: Classic, the plain stock look (no Material You)
+                            StyleCard("Classic", "Plain stock look", homeStyle == "stock", false,
+                                Modifier.fillMaxWidth().height(96.dp), onClick = { homeStyle = "stock" }) { ClassicPreview() }
                         }
                         else -> {
                             Title("Make it yours", "Here's where everything lives.")
@@ -381,5 +385,24 @@ private fun OrbitPreview(shape: String) {
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(w * 0.15f)
                 .clip(RoundedCornerShape(50)).border(1.5.dp, Color.White, RoundedCornerShape(50))
         )
+    }
+}
+
+
+/** bitDroid: a tiny picture of the Classic home style (neutral grey, round icons, white bar). */
+@Composable
+private fun ClassicPreview() {
+    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+        drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color(0xFF4B5563), androidx.compose.ui.graphics.Color(0xFF111827))))
+        val cols = listOf(0xFF34A853, 0xFFE5484D, 0xFF1A56DB, 0xFFFF9F0A)
+        val r = size.height * 0.11f
+        for (i in 0 until 4) {
+            val cx = size.width * (0.2f + 0.2f * i)
+            drawCircle(androidx.compose.ui.graphics.Color(cols[i]), r, androidx.compose.ui.geometry.Offset(cx, size.height * 0.42f))
+        }
+        drawRoundRect(androidx.compose.ui.graphics.Color.White,
+            topLeft = androidx.compose.ui.geometry.Offset(size.width * 0.12f, size.height * 0.68f),
+            size = androidx.compose.ui.geometry.Size(size.width * 0.76f, size.height * 0.16f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height * 0.08f))
     }
 }

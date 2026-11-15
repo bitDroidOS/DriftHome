@@ -257,7 +257,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
 
     /** Home styles offered in setup (id to name). */
-    val homeStyles = listOf("bloom" to "Bloom", "morph" to "Morph", "orbit" to "Orbit")
+    val homeStyles = listOf("bloom" to "Bloom", "morph" to "Morph", "orbit" to "Orbit", "stock" to "Classic")
 
     /** The style Alex recommends (shown first in setup with a "Dev's Fav" tag). */
     val devFavStyle = "bloom"
@@ -271,20 +271,20 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun applyHomeStyle(style: String, shape: String? = null) {
         if (org.driftvane.launcher.ui.isMorphLike(style)) { applyMorphLike(style, shape ?: iconShape.takeIf { it != "rounded" } ?: "squircle"); return }
         prefs.edit().putString("top_style", style).putBoolean("glance", true)
-            .putString("icon_shape", "rounded").putString("icon_theme", IconTheme.ORIGINAL)
+            .putString("icon_shape", if (style == "stock") "circle" else "rounded").putString("icon_theme", IconTheme.ORIGINAL)
             .putString("dock_style", "clear").putBoolean("labels", style == "stock").putBoolean("grid_panel", false)
-            .putBoolean("search_pill", true).putInt("columns", if (style == "stock") 5 else 4).putFloat("icon_scale", 1.26f)
+            .putBoolean("search_pill", true).putInt("columns", 4).putFloat("icon_scale", if (style == "stock") 1.12f else 1.26f)
             .putString("library", LibraryStyle.FOLDERS).apply()
         topStyle = style
         showGlance = true
-        iconShape = "rounded"
+        iconShape = if (style == "stock") "circle" else "rounded"
         dockStyle = "clear"
         showLabels = style == "stock"
         gridPanel = false
         searchPill = true
-        iconScale = 1.26f
+        iconScale = if (style == "stock") 1.12f else 1.26f
         libraryStyle = LibraryStyle.FOLDERS
-        columns = if (style == "stock") 5 else 4
+        columns = 4
         iconTheme = IconTheme.ORIGINAL
         reload()
         reflowAll()

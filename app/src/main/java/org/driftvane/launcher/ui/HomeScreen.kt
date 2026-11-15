@@ -59,6 +59,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -689,6 +690,27 @@ private fun Pill(text: String, color: Color, onClick: () -> Unit) {
  */
 @Composable
 private fun SearchPill(model: LauncherModel, count: Int, current: Int, swiping: Boolean, onSearch: () -> Unit) {
+    // bitDroid Classic: a plain white stock search bar, no Material You (remove it in bitHome settings)
+    if (model.topStyle == "stock") {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp).height(44.dp)
+                .clip(RoundedCornerShape(50)).background(Color.White)
+                .clickable(remember { MutableInteractionSource() }, indication = null) { onSearch() }
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Canvas(Modifier.size(18.dp)) {
+                val r = size.minDimension * 0.33f
+                val c = androidx.compose.ui.geometry.Offset(size.width * 0.42f, size.height * 0.42f)
+                drawCircle(Color(0xFF5F6368), r, c, style = Stroke(size.minDimension * 0.13f))
+                drawLine(Color(0xFF5F6368), c + androidx.compose.ui.geometry.Offset(r * 0.72f, r * 0.72f),
+                    androidx.compose.ui.geometry.Offset(size.width * 0.92f, size.height * 0.92f), size.minDimension * 0.14f)
+            }
+            Spacer(Modifier.width(12.dp))
+            Text("Search", color = Color(0xFF5F6368), fontSize = 16.sp)
+        }
+        return
+    }
     var showDots by remember { mutableStateOf(false) }
     LaunchedEffect(swiping, current) {
         if (swiping) showDots = true else { delay(900); showDots = false }
