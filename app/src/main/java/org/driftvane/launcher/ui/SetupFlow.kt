@@ -1,5 +1,8 @@
 package org.driftvane.launcher.ui
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.scaleIn
 import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
@@ -207,19 +210,100 @@ fun SetupFlow(model: LauncherModel) {
 
 @Composable
 private fun Welcome() {
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
-        // the real logo vector
-        androidx.compose.foundation.Image(
-            androidx.compose.ui.res.painterResource(org.driftvane.launcher.R.drawable.ic_rom_logo), null,
-            Modifier.size(128.dp, 64.dp),
-        )
-        Spacer(Modifier.height(28.dp))
-        Text("Hey.", color = Color.White, fontSize = 64.sp, fontWeight = FontWeight.W600, lineHeight = 66.sp)
-        Text("Welcome to ${romName()}.", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.W500, lineHeight = 32.sp)
-        Spacer(Modifier.height(12.dp))
-        Text("Let's set up your home screen. It takes about ten seconds.", color = Muted, fontSize = 16.sp, lineHeight = 22.sp)
-        Spacer(Modifier.height(24.dp))
-        Text("Made by Alex Desrosier", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp, fontWeight = FontWeight.W600)
+    // bitDroid "Bloom line" welcome: a turning cookie logo, a stream of bits that blooms into a
+    // cookie and bursts into petals (on a loop), and Hello in different languages
+    val hellos = remember { listOf("Hello", "Hola", "你好", "Bonjour", "Ciao", "こんにちは", "Hallo", "Olá", "안녕하세요", "Привет", "مرحبا", "Hej") }
+    var hi by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(1800); hi = (hi + 1) % hellos.size } }
+    val tr = androidx.compose.animation.core.rememberInfiniteTransition(label = "bloomline")
+    val loop by tr.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(
+        androidx.compose.animation.core.tween(3600, easing = androidx.compose.animation.core.LinearEasing)), label = "loop")
+    val spin by tr.animateFloat(0f, 360f, androidx.compose.animation.core.infiniteRepeatable(
+        androidx.compose.animation.core.tween(16000, easing = androidx.compose.animation.core.LinearEasing)), label = "spin")
+    val lilac = Color(0xFFD0BCFF)
+    val deep = Color(0xFF7F67BE)
+    val petal = Color(0xFFEFB8C8)
+    fun cookie(cx: Float, cy: Float, r: Float, lobes: Int, depth: Float, turn: Float) =
+        androidx.compose.ui.graphics.Path().apply {
+            val steps = lobes * 20
+            for (k in 0..steps) {
+                val t = k.toFloat() / steps * 2f * Math.PI.toFloat()
+                val rr = r * (1f + depth * kotlin.math.cos(lobes * t)) / (1f + depth)
+                val x = cx + rr * kotlin.math.cos(t + turn)
+                val y = cy + rr * kotlin.math.sin(t + turn)
+                if (k == 0) moveTo(x, y) else lineTo(x, y)
+            }
+            close()
+        }
+    Box(Modifier.fillMaxSize()) {
+        androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+            // faint dot grid
+            val gap = 18.dp.toPx()
+            var gx = gap / 2
+            while (gx < size.width) {
+                var gy = gap / 2
+                while (gy < size.height) { drawCircle(lilac.copy(alpha = 0.07f), 1.dp.toPx(), androidx.compose.ui.geometry.Offset(gx, gy)); gy += gap }
+                gx += gap
+            }
+            // the logo cookie, turning
+            val lc = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height * 0.17f)
+            val rad = Math.toRadians(spin.toDouble()).toFloat()
+            drawCircle(lilac.copy(alpha = 0.16f), 80.dp.toPx(), lc)
+            drawPath(cookie(lc.x, lc.y, 52.dp.toPx(), 12, 0.08f, rad), deep)
+            drawPath(cookie(lc.x, lc.y, 34.dp.toPx(), 8, 0.1f, -rad * 1.3f), lilac)
+            // the bloom line
+            val ly = size.height * 0.48f
+            drawLine(lilac.copy(alpha = 0.12f), androidx.compose.ui.geometry.Offset(0f, ly), androidx.compose.ui.geometry.Offset(size.width, ly), 1.dp.toPx())
+            val cx = size.width / 2f
+            val run = (loop / 0.45f).coerceAtMost(1f)          // 0..0.45: bits race to the middle
+            val bloom = ((loop - 0.4f) / 0.3f).coerceIn(0f, 1f) // 0.4..0.7: the cookie blooms
+            val fade = ((loop - 0.85f) / 0.15f).coerceIn(0f, 1f)
+            val head = cx * run
+            val step = 12.dp.toPx()
+            var x = step / 2
+            while (x < head) {
+                val a = (1f - (head - x) / (size.width * 0.5f)).coerceIn(0.12f, 1f) * (1f - bloom)
+                drawRoundRect(lilac.copy(alpha = a), androidx.compose.ui.geometry.Offset(x - 2.dp.toPx(), ly - 2.dp.toPx()),
+                    androidx.compose.ui.geometry.Size(4.dp.toPx(), 4.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(1.dp.toPx()))
+                x += step
+            }
+            if (run < 1f) drawCircle(Color.White, 5.dp.toPx(), androidx.compose.ui.geometry.Offset(head, ly))
+            if (bloom > 0f) {
+                val e = 1f - (1f - bloom) * (1f - bloom)
+                val a = 1f - fade
+                drawCircle(lilac.copy(alpha = 0.22f * a), 70.dp.toPx() * e, androidx.compose.ui.geometry.Offset(cx, ly))
+                drawPath(cookie(cx, ly, 46.dp.toPx() * e, 9, 0.1f, rad * 2f), Color(0xFFB69DF8).copy(alpha = a))
+                drawPath(cookie(cx, ly, 24.dp.toPx() * e, 6, 0.12f, -rad * 2.4f), Color(0xFFF6EDFF).copy(alpha = a))
+                for (k in 0 until 8) {
+                    val ang = k * Math.PI.toFloat() / 4f + rad
+                    val d = 70.dp.toPx() * e
+                    drawCircle(petal.copy(alpha = 0.75f * a), 3.dp.toPx(),
+                        androidx.compose.ui.geometry.Offset(cx + d * kotlin.math.cos(ang), ly + d * kotlin.math.sin(ang)))
+                }
+                // the bits keep flowing out the other side
+                var x2 = cx + step
+                while (x2 < cx + (size.width - cx) * e) {
+                    drawRoundRect(lilac.copy(alpha = 0.6f * a), androidx.compose.ui.geometry.Offset(x2 - 2.dp.toPx(), ly - 2.dp.toPx()),
+                        androidx.compose.ui.geometry.Size(4.dp.toPx(), 4.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(1.dp.toPx()))
+                    x2 += step
+                }
+            }
+        }
+        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(Modifier.fillMaxHeight(0.28f))
+            Text(romName(), color = Color(0xFFF6EDFF), fontSize = 34.sp, fontWeight = FontWeight.W700)
+            Text("made to bloom.", color = lilac, fontSize = 14.sp, fontWeight = FontWeight.W500,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+            Spacer(Modifier.weight(1f))
+            androidx.compose.animation.AnimatedContent(hi, transitionSpec = {
+                (fadeIn(tween(420)) + scaleIn(initialScale = 0.85f)) togetherWith (fadeOut(tween(300)) + scaleOut(targetScale = 1.1f))
+            }, label = "hello") { idx ->
+                Text(hellos[idx], color = Color(0xFFF6EDFF), fontSize = 48.sp, fontWeight = FontWeight.W500)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("Made by Alex Desrosier", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp, fontWeight = FontWeight.W600)
+            Spacer(Modifier.fillMaxHeight(0.12f))
+        }
     }
 }
 

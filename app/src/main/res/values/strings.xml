@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">bitHome</string>
+    <string name="bloom_live_name">Living Bloom</string>
+    <string name="bloom_live_desc">bitDroid Midnight Clover, alive: clovers drift, petals open when you unlock, and it breathes while charging</string>
 </resources>

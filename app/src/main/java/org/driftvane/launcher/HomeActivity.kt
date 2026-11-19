@@ -109,7 +109,9 @@ class HomeActivity : ComponentActivity(), HomeActions {
         val la = getSystemService(LauncherApps::class.java)
         val r = android.graphics.Rect(bounds.left.toInt(), bounds.top.toInt(), bounds.right.toInt(), bounds.bottom.toInt())
         val opts = if (!r.isEmpty) {
-            ActivityOptions.makeScaleUpAnimation(window.decorView, r.left, r.top, r.width(), r.height()).toBundle()
+            // bitDroid: the app blooms out of the icon you tapped (clip reveal grows it from the
+            // icon's own shape and spot instead of a plain zoom)
+            ActivityOptions.makeClipRevealAnimation(window.decorView, r.left, r.top, r.width(), r.height()).toBundle()
         } else null
         runCatching { la.startMainActivity(app.component, app.user, r, opts) }.onFailure { e ->
             android.util.Log.w("DriftHome", "launch with animation failed", e)

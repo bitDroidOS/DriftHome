@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- bitDroid living Bloom wallpaper -->
+<wallpaper xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/bloom_live_desc"
+    android:thumbnail="@mipmap/ic_launcher" />

@@ -730,6 +730,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         // phone, messages, AlexLMP, camera). Each falls back to whatever app handles that job.
         val picks = listOfNotNull(
             pkg("com.bitdroid.maps") ?: cat(Intent.CATEGORY_APP_MAPS),
+            pkg("com.cashhwocky.bitfocus"),
             pkg("org.lineageos.glimpse") ?: cat(Intent.CATEGORY_APP_GALLERY),
             pkg("org.lineageos.etar", "ws.xsoh.etar") ?: cat(Intent.CATEGORY_APP_CALENDAR),
             pkg("com.android.deskclock", "com.google.android.deskclock"),
