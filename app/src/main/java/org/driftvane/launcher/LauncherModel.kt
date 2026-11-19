@@ -239,7 +239,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     /** Rows the top area takes on the first page, per home style. */
     private val glanceRows: Int
         get() = when (topStyle) {
-            "split", "stack" -> 2
+            "split", "stack", "liquid" -> 2
             "stock" -> 1
             "columns", "morph", "orbit", "bloom" -> 0
             else -> 3
@@ -257,10 +257,10 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
 
     /** Home styles offered in setup (id to name). */
-    val homeStyles = listOf("bloom" to "Bloom", "morph" to "Morph", "orbit" to "Orbit", "stock" to "Classic")
+    val homeStyles = listOf("liquid" to "Liquid", "bloom" to "Bloom", "morph" to "Morph", "orbit" to "Orbit", "stock" to "Classic")
 
     /** The style Alex recommends (shown first in setup with a "Dev's Fav" tag). */
-    val devFavStyle = "bloom"
+    val devFavStyle = "liquid"
 
     /** Page swipe animation on the home screen ("slide" is the original). */
     var pageAnim by mutableStateOf(prefs.getString("page_anim", PageAnim.SLIDE)!!)
@@ -271,18 +271,18 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun applyHomeStyle(style: String, shape: String? = null) {
         if (org.driftvane.launcher.ui.isMorphLike(style)) { applyMorphLike(style, shape ?: iconShape.takeIf { it != "rounded" } ?: "squircle"); return }
         prefs.edit().putString("top_style", style).putBoolean("glance", true)
-            .putString("icon_shape", if (style == "stock") "circle" else "rounded").putString("icon_theme", IconTheme.ORIGINAL)
-            .putString("dock_style", "clear").putBoolean("labels", style == "stock").putBoolean("grid_panel", false)
-            .putBoolean("search_pill", true).putInt("columns", 4).putFloat("icon_scale", if (style == "stock") 1.12f else 1.26f)
+            .putString("icon_shape", when (style) { "stock" -> "circle"; "liquid" -> "squircle"; else -> "rounded" }).putString("icon_theme", IconTheme.ORIGINAL)
+            .putString("dock_style", if (style == "liquid") "liquid" else "clear").putBoolean("labels", style == "stock" || style == "liquid").putBoolean("grid_panel", false)
+            .putBoolean("search_pill", true).putInt("columns", 4).putFloat("icon_scale", if (style == "stock" || style == "liquid") 1.12f else 1.26f)
             .putString("library", LibraryStyle.FOLDERS).apply()
         topStyle = style
         showGlance = true
-        iconShape = if (style == "stock") "circle" else "rounded"
-        dockStyle = "clear"
-        showLabels = style == "stock"
+        iconShape = when (style) { "stock" -> "circle"; "liquid" -> "squircle"; else -> "rounded" }
+        dockStyle = if (style == "liquid") "liquid" else "clear"
+        showLabels = style == "stock" || style == "liquid"
         gridPanel = false
         searchPill = true
-        iconScale = if (style == "stock") 1.12f else 1.26f
+        iconScale = if (style == "stock" || style == "liquid") 1.12f else 1.26f
         libraryStyle = LibraryStyle.FOLDERS
         columns = 4
         iconTheme = IconTheme.ORIGINAL

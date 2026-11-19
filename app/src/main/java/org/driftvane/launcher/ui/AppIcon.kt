@@ -65,6 +65,8 @@ fun AppTile(app: AppEntry, size: Float, modifier: Modifier = Modifier) {
             .shadow((size * 0.06f).dp, shape, ambientColor = Color(0x33000000), spotColor = Color(0x59000000))
             .clip(shape)
             .then(if (edge != null) Modifier.border(1.5.dp, edge, shape) else Modifier)
+            // bitDroid Liquid: system app icons get a glossy glass highlight
+            .then(if (LocalLiquid.current && app.component.packageName in LIQUID_GLOSS_PACKAGES) Modifier.liquidGloss(shape) else Modifier)
     ) {
         Image(app.icon, contentDescription = app.label, modifier = Modifier.fillMaxSize())
     }

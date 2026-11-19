@@ -148,6 +148,10 @@ fun SetupFlow(model: LauncherModel) {
                                     Modifier.weight(1f).fillMaxHeight(), onClick = { homeStyle = "orbit" }) { OrbitPreview(shape) }
                             }
                             Spacer(Modifier.height(10.dp))
+                            // bitDroid: Liquid, the glass look (the default)
+                            StyleCard("Liquid", "Frosted glass, glossy icons", homeStyle == "liquid", model.devFavStyle == "liquid",
+                                Modifier.fillMaxWidth().height(96.dp), onClick = { homeStyle = "liquid" }) { LiquidPreview() }
+                            Spacer(Modifier.height(10.dp))
                             // bitDroid: Classic, the plain stock look (no Material You)
                             StyleCard("Classic", "Plain stock look", homeStyle == "stock", false,
                                 Modifier.fillMaxWidth().height(96.dp), onClick = { homeStyle = "stock" }) { ClassicPreview() }
@@ -488,5 +492,33 @@ private fun ClassicPreview() {
             topLeft = androidx.compose.ui.geometry.Offset(size.width * 0.12f, size.height * 0.68f),
             size = androidx.compose.ui.geometry.Size(size.width * 0.76f, size.height * 0.16f),
             cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height * 0.08f))
+    }
+}
+
+
+/** bitDroid: a tiny picture of the Liquid home style (colorful light behind frosted glass). */
+@Composable
+private fun LiquidPreview() {
+    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+        drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color(0xFF1B2A55), androidx.compose.ui.graphics.Color(0xFF0E1630))))
+        fun glow(x: Float, y: Float, r: Float, c: Long) = drawCircle(
+            androidx.compose.ui.graphics.Brush.radialGradient(listOf(androidx.compose.ui.graphics.Color(c), androidx.compose.ui.graphics.Color.Transparent),
+                center = androidx.compose.ui.geometry.Offset(x, y), radius = r), r, androidx.compose.ui.geometry.Offset(x, y))
+        glow(size.width * 0.2f, size.height * 0.2f, size.width * 0.35f, 0xCCFF9F6E)
+        glow(size.width * 0.85f, size.height * 0.4f, size.width * 0.35f, 0xCC6E7BFF)
+        glow(size.width * 0.5f, size.height * 1.0f, size.width * 0.4f, 0xCC29C5B5)
+        val glass = androidx.compose.ui.graphics.Color(0x52FFFFFF)
+        val rim = androidx.compose.ui.graphics.Color(0x80FFFFFF)
+        val cr = androidx.compose.ui.geometry.CornerRadius(size.height * 0.14f)
+        for (i in 0..1) {
+            val tl = androidx.compose.ui.geometry.Offset(size.width * (0.08f + 0.44f * i), size.height * 0.12f)
+            val sz = androidx.compose.ui.geometry.Size(size.width * 0.4f, size.height * 0.46f)
+            drawRoundRect(glass, tl, sz, cr)
+            drawRoundRect(rim, tl, sz, cr, style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+        }
+        val tl = androidx.compose.ui.geometry.Offset(size.width * 0.08f, size.height * 0.68f)
+        val sz = androidx.compose.ui.geometry.Size(size.width * 0.84f, size.height * 0.22f)
+        drawRoundRect(glass, tl, sz, androidx.compose.ui.geometry.CornerRadius(size.height * 0.11f))
+        drawRoundRect(rim, tl, sz, androidx.compose.ui.geometry.CornerRadius(size.height * 0.11f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
     }
 }

@@ -387,6 +387,7 @@ fun HomeScreen(
         LocalIconShape provides IconShapes.shape(model.iconShape),
         LocalIconBorder provides (if (model.iconTheme == org.driftvane.launcher.IconTheme.OUTLINE) soften(model.accent, 0.35f).copy(alpha = 0.9f) else null),
         LocalResumeTick provides resumed,
+        LocalLiquid provides (model.topStyle == "liquid"),
     ) {
     Box(Modifier.fillMaxSize()) {
         Box(
@@ -690,6 +691,8 @@ private fun Pill(text: String, color: Color, onClick: () -> Unit) {
  */
 @Composable
 private fun SearchPill(model: LauncherModel, count: Int, current: Int, swiping: Boolean, onSearch: () -> Unit) {
+    // bitDroid Liquid: a small floating glass pill
+    if (model.topStyle == "liquid") { LiquidSearchPill(onSearch); return }
     // bitDroid Classic: a plain white stock search bar, no Material You (remove it in bitHome settings)
     if (model.topStyle == "stock") {
         Row(

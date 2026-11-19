@@ -359,6 +359,7 @@ private fun Preview(model: LauncherModel) {
 
 /** Dock background for the chosen dock style. */
 fun dockModifier(model: LauncherModel): Modifier = when (model.dockStyle) {
+    "liquid" -> Modifier.liquidGlass(androidx.compose.foundation.shape.RoundedCornerShape(36.dp))
     "clear" -> Modifier
     // a thin accent line above the dock icons
     "line" -> Modifier.drawBehind {
@@ -376,6 +377,7 @@ private fun styleHint(id: String) = when (id) {
     "orbit" -> "Apps on a ring around the clock; spin it"
     "bloom" -> "Big Material You tiles in your wallpaper's colors, a giant clock"
     "stock" -> "Classic: a plain stock look with no Material You, round icons, white search bar"
+    "liquid" -> "Liquid: frosted glass widgets, a floating glass dock and glossy icons"
     "frame" -> "Your wallpaper in a window with the clock"
     "split" -> "Swipeable cards on top, apps below"
     "stack" -> "A deck of cards you flick through"
