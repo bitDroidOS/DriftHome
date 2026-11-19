@@ -30,6 +30,9 @@ import kotlin.math.sin
  * breathe, home screen swipes nudge them sideways, the clovers bloom open each time you unlock,
  * and everything breathes faster while charging. Draws at ~30 fps only while visible.
  */
+/** One drifting clover of the living wallpaper (top level: inner classes can't hold classes). */
+private data class Clover(val x: Float, val y: Float, val r: Float, val color: Int, val turn: Float, val speed: Float)
+
 class BloomLiveWallpaper : WallpaperService() {
     override fun onCreateEngine(): Engine = BloomEngine()
 
@@ -44,7 +47,6 @@ class BloomLiveWallpaper : WallpaperService() {
         private val soft = Paint(Paint.ANTI_ALIAS_FLAG)
         private val path = Path()
 
-        private data class Clover(val x: Float, val y: Float, val r: Float, val color: Int, val turn: Float, val speed: Float)
         private val clovers = listOf(
             Clover(0.29f, 0.29f, 0.28f, 0xFF9A82DB.toInt(), 0.3f, 1f),
             Clover(0.76f, 0.73f, 0.31f, 0xFFD97FB3.toInt(), 0.9f, -0.8f),
