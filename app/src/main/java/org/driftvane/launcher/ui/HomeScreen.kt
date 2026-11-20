@@ -692,7 +692,8 @@ private fun Pill(text: String, color: Color, onClick: () -> Unit) {
 @Composable
 private fun SearchPill(model: LauncherModel, count: Int, current: Int, swiping: Boolean, onSearch: () -> Unit) {
     // bitDroid Liquid: a small floating glass pill
-    if (model.topStyle == "liquid") { LiquidSearchPill(onSearch); return }
+    // Bloom x Liquid Glass: no pill above the dock (search lives in the app library); page dots while swiping
+    if (model.topStyle == "liquid" && !swiping) return
     // bitDroid Classic: a plain white stock search bar, no Material You (remove it in bitHome settings)
     if (model.topStyle == "stock") {
         Row(

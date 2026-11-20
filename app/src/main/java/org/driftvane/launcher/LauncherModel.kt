@@ -239,8 +239,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     /** Rows the top area takes on the first page, per home style. */
     private val glanceRows: Int
         get() = when (topStyle) {
-            "split", "stack" -> 2
-            "liquid" -> 3
+            "split", "stack", "liquid" -> 2
             "stock" -> 1
             "columns", "morph", "orbit", "bloom" -> 0
             else -> 3

@@ -154,7 +154,7 @@ private fun FolderTile(
     val rest = if (apps.size <= 4) emptyList() else apps.drop(3)
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Column(
-            Modifier.fillMaxWidth().aspectRatio(1f).liquidGlass(RoundedCornerShape(30.dp)).clip(RoundedCornerShape(30.dp))
+            Modifier.fillMaxWidth().aspectRatio(1f).liquidGlass(RoundedCornerShape(40.dp)).clip(RoundedCornerShape(40.dp))
                 .clickable(remember { MutableInteractionSource() }, indication = null) { onOpen() }
                 .padding(10.dp),
         ) {

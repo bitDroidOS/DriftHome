@@ -1,5 +1,6 @@
 package org.driftvane.launcher.ui
 
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
@@ -208,24 +209,105 @@ private val CardShape = RoundedCornerShape(28.dp)
  */
 @Composable
 fun LiquidTop(model: LauncherModel) {
-    val context = LocalContext.current
+    // bitDroid Bloom x Liquid Glass: frosted glass cut into Bloom shapes. A cookie-shaped glass
+    // clock on the left; a glass weather pill and a round now-playing pill on the right.
     val tick = LocalResumeTick.current
     val now by produceState(System.currentTimeMillis(), tick) {
         while (true) { value = System.currentTimeMillis(); delay(1000L * (60 - (value / 1000 % 60)).coerceAtLeast(1)) }
     }
     val time = remember(now) { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(now)).replace(Regex("\\s?[AaPp]\\.?[Mm]\\.?$"), "") }
-    val date = remember(now) { java.text.SimpleDateFormat("EEEE, MMM d", Locale.getDefault()).format(java.util.Date(now)) }
-    Column(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 4.dp)) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Column(Modifier.weight(1f)) {
-                Text(time, color = Color.White, fontSize = 74.sp, fontWeight = FontWeight.ExtraLight,
-                    letterSpacing = (-3).sp, lineHeight = 74.sp, maxLines = 1)
-                Text(date, color = Color.White.copy(alpha = 0.92f), fontSize = 15.sp, fontWeight = FontWeight.Medium)
+    val date = remember(now) { java.text.SimpleDateFormat("EEE, MMM d", Locale.getDefault()).format(java.util.Date(now)) }
+    Row(
+        Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val cookie = CookieShape(9, 0.06f)
+        Box(
+            Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true).liquidGlass(cookie).clip(cookie),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(time, color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Light, letterSpacing = (-1).sp, maxLines = 1)
+                Text(date, color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
             }
-            LiquidWeatherMini()
         }
-        Spacer(Modifier.height(16.dp))
-        LiquidStack(Modifier.fillMaxWidth().weight(1f))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)) {
+            BloomGlassWeather(Modifier.fillMaxWidth().weight(1f))
+            BloomGlassMusic(Modifier.fillMaxWidth().weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun BloomGlassWeather(modifier: Modifier) {
+    val context = LocalContext.current
+    val tick = LocalResumeTick.current
+    var w by remember { mutableStateOf<Weather?>(null) }
+    val allowed = has(context, Manifest.permission.ACCESS_COARSE_LOCATION)
+    LaunchedEffect(tick, allowed) {
+        if (!allowed) return@LaunchedEffect
+        while (true) { fetchWeather(context)?.let { w = it }; delay(30 * 60 * 1000L) }
+    }
+    val pill = RoundedCornerShape(50)
+    Row(
+        modifier.liquidGlass(pill).clip(pill)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                if (!allowed) ask(context, Manifest.permission.ACCESS_COARSE_LOCATION)
+            },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val cur = w
+        val (emoji, text) = if (cur != null) weatherText(cur.code) else ("⛅" to if (allowed) "Loading…" else "Tap for weather")
+        Text(emoji, fontSize = 22.sp)
+        Spacer(Modifier.width(8.dp))
+        Column {
+            if (cur != null) Text("${cur.temp}°", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Light, lineHeight = 22.sp)
+            Text(text, color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun BloomGlassMusic(modifier: Modifier) {
+    val context = LocalContext.current
+    val tick = LocalResumeTick.current
+    val media by produceState<Pair<NowPlaying, Boolean>?>(null, tick) { while (true) { value = mediaNow(context); delay(1500) } }
+    val allowed = has(context, Manifest.permission.READ_CALENDAR)
+    var ev by remember { mutableStateOf<NextEvent?>(null) }
+    LaunchedEffect(tick, allowed) { if (allowed) ev = nextEvent(context) }
+    val pill = RoundedCornerShape(50)
+    val m = media
+    Row(
+        modifier.liquidGlass(pill).clip(pill)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                if (m != null) runCatching { if (m.second) m.first.controller.transportControls.pause() else m.first.controller.transportControls.play() }
+                else if (!allowed) ask(context, Manifest.permission.READ_CALENDAR)
+            }
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (m != null) {
+            Box(Modifier.size(46.dp).clip(CircleShape).background(Color(0x33FFFFFF))) {
+                m.first.art?.let { androidx.compose.foundation.Image(it.asImageBitmap(), null, Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop) }
+            }
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(m.first.title, color = Color.White, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(if (m.second) "playing" else "paused", color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp)
+            }
+        } else {
+            Box(Modifier.padding(start = 8.dp).width(3.dp).height(30.dp).liquidBar())
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                val e = ev
+                Text(e?.title ?: if (allowed) "Nothing next" else "Next event", color = Color.White, fontSize = 12.5.sp,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(e?.time ?: if (allowed) "Free time" else "Tap to show", color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp, maxLines = 1)
+            }
+        }
     }
 }
 
