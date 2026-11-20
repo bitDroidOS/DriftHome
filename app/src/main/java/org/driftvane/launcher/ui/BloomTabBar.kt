@@ -46,6 +46,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Size
@@ -200,7 +201,7 @@ fun BloomTabBar(
 }
 
 /** Squish on press, spring back. */
-private fun Modifier.tabSquish(onClick: () -> Unit): Modifier = androidx.compose.ui.composed {
+private fun Modifier.tabSquish(onClick: () -> Unit): Modifier = this.composed {
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val s by animateFloatAsState(if (pressed) 0.9f else 1f, spring(0.45f, 600f), label = "sq")
