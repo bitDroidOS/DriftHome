@@ -733,6 +733,9 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             // bitTube: on the home screen by default (by package, or by name if the package changes)
             pkg("com.cashhwocky.bittube", "com.bitdroid.tube", "com.bitdroid.bittube")
                 ?: apps.values.firstOrNull { it.label.contains("bittube", ignoreCase = true) }?.key,
+            // bitClips: right next to bitTube
+            pkg("com.cashhwocky.bitclips", "com.bitdroid.clips", "com.bitdroid.bitclips")
+                ?: apps.values.firstOrNull { it.label.contains("bitclips", ignoreCase = true) }?.key,
             pkg("org.lineageos.glimpse") ?: cat(Intent.CATEGORY_APP_GALLERY),
             pkg("org.lineageos.etar", "ws.xsoh.etar") ?: cat(Intent.CATEGORY_APP_CALENDAR),
             pkg("com.android.deskclock", "com.google.android.deskclock"),
