@@ -58,6 +58,15 @@ abstract class FlowWallpaper : WallpaperService() {
             if (v) handler.post(frame)
         }
         override fun onSurfaceDestroyed(holder: SurfaceHolder) { visible = false; handler.removeCallbacks(frame); super.onSurfaceDestroyed(holder) }
+        // Material You colors come from the wallpaper's own blobs (without this, the system fell
+        // back to its default green for the fingerprint icon and the lock screen shortcuts)
+        override fun onComputeColors(): android.app.WallpaperColors =
+            android.app.WallpaperColors(
+                android.graphics.Color.valueOf(blobs[0].color or 0xFF000000.toInt()),
+                android.graphics.Color.valueOf(blobs.getOrElse(1) { blobs[0] }.color or 0xFF000000.toInt()),
+                android.graphics.Color.valueOf(base),
+            )
+
         override fun onOffsetsChanged(xo: Float, yo: Float, xs: Float, ys: Float, xp: Int, yp: Int) { xOffset = xo }
 
         private fun draw() {

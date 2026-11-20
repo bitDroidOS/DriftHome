@@ -81,7 +81,8 @@ fun AppTile(app: AppEntry, size: Float, modifier: Modifier = Modifier) {
         ) {
             Image(app.icon, contentDescription = app.label, modifier = Modifier.fillMaxSize())
         }
-        if (count > 0 && size >= 36f) {
+        // bitDroid: no badge (counts were misleading); swipe down on the icon still shows them
+        if (false && count > 0 && size >= 36f) {
             Box(
                 Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp)
                     .defaultMinSize(minWidth = 21.dp).height(21.dp)
