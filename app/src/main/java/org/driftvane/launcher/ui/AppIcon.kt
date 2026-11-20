@@ -1,5 +1,14 @@
 package org.driftvane.launcher.ui
 
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.collectAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -60,17 +69,55 @@ val LabelStyle = labelStyle()
 fun AppTile(app: AppEntry, size: Float, modifier: Modifier = Modifier) {
     val shape = LocalIconShape.current
     val edge = LocalIconBorder.current
-    Box(
-        modifier.size(size.dp)
-            .shadow((size * 0.06f).dp, shape, ambientColor = Color(0x33000000), spotColor = Color(0x59000000))
-            .clip(shape)
-            .then(if (edge != null) Modifier.border(1.5.dp, edge, shape) else Modifier)
-            // bitDroid Liquid: system app icons get a glossy glass highlight
-            .then(if (LocalLiquid.current && app.component.packageName in LIQUID_GLOSS_PACKAGES) Modifier.liquidGloss(shape) else Modifier)
-    ) {
-        Image(app.icon, contentDescription = app.label, modifier = Modifier.fillMaxSize())
+    // bitDroid: notification count on the icon
+    val notifs by org.driftvane.launcher.AppNotifs.byPkg.collectAsState()
+    val count = notifs[app.component.packageName]?.size ?: 0
+    Box(modifier.size(size.dp)) {
+        Box(
+            Modifier.fillMaxSize()
+                .shadow((size * 0.06f).dp, shape, ambientColor = Color(0x33000000), spotColor = Color(0x59000000))
+                .clip(shape)
+                .then(if (edge != null) Modifier.border(1.5.dp, edge, shape) else Modifier)
+        ) {
+            Image(app.icon, contentDescription = app.label, modifier = Modifier.fillMaxSize())
+        }
+        if (count > 0 && size >= 36f) {
+            Box(
+                Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp)
+                    .defaultMinSize(minWidth = 21.dp).height(21.dp)
+                    .clip(RoundedCornerShape(50)).background(Color(0xFFFF3B30))
+                    .border(1.5.dp, Color(0x40000000), RoundedCornerShape(50))
+                    .padding(horizontal = 5.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(if (count > 99) "99+" else count.toString(), color = Color.White, fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+        }
     }
 }
+
+/**
+ * bitDroid: swipe down on an icon that has notifications and they pop out of it (the Peek menu).
+ * Only watches; it takes over the gesture only once it's clearly a downward swipe on such an icon.
+ */
+fun Modifier.swipeDownPeek(pkg: String?, enabled: Boolean, onPeek: () -> Unit): Modifier =
+    if (!enabled || pkg == null) this else this.pointerInput(pkg) {
+        val need = 34.dp.toPx()
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            if ((org.driftvane.launcher.AppNotifs.byPkg.value[pkg]?.size ?: 0) == 0) return@awaitEachGesture
+            var fired = false
+            while (true) {
+                val ev = awaitPointerEvent(PointerEventPass.Initial)
+                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                if (!ch.pressed) break
+                val d = ch.position - down.position
+                if (!fired && d.y > need && kotlin.math.abs(d.x) < d.y * 0.6f) { fired = true; onPeek() }
+                if (fired) ch.consume()
+            }
+        }
+    }
 
 /** Folder tile: liquid-glass tile with a 3x3 preview of the apps inside. */
 @Composable

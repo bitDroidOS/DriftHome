@@ -1,5 +1,10 @@
 package org.driftvane.launcher.ui
 
+import org.driftvane.launcher.AppNotifs
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.collectAsState
 import android.appwidget.AppWidgetProviderInfo
 import android.content.pm.PackageManager
 import androidx.compose.animation.core.Animatable
@@ -131,7 +136,7 @@ fun MenuRow(text: String, glyph: G, color: Color = Color.White, divider: Boolean
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             Glyph(glyph, color, 20.dp)
         }
-        if (divider) Box(Modifier.fillMaxWidth().padding(start = 18.dp).height(0.6.dp).background(Color(0x26FFFFFF)))
+        if (divider) Box(Modifier.fillMaxWidth().padding(start = 18.dp).height(0.6.dp).background(Color(0x1FFFFFFF)))
     }
 }
 
@@ -141,8 +146,8 @@ private fun QuickAction(text: String, glyph: G, color: Color, modifier: Modifier
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     Column(
-        modifier.clip(RoundedCornerShape(18.dp))
-            .background(if (pressed) Color(0x33FFFFFF) else Color(0x1AFFFFFF))
+        modifier.clip(RoundedCornerShape(20.dp))
+            .background(if (pressed) Color(0x40FFFFFF) else Color(0x1FFFFFFF))
             .clickable(interaction, indication = null, onClick = onClick)
             .padding(vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -178,7 +183,9 @@ fun ItemMenu(
         anchor = anchor,
         lifted = { HomeItem(model, key, iconSize, false) },
     ) {
-        Column(Modifier.width(290.dp).glass(26.dp, 0.95f).swallowTaps().padding(vertical = 6.dp)) {
+        val tones = bloomTones()
+        Column(Modifier.width(300.dp).bloomMenu(tones).swallowTaps().padding(vertical = 8.dp)) {
+            if (!folder) model.apps[key]?.let { PeekSection(it.component.packageName, tones, onClose) }
             Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!model.lockLayout) QuickAction("Edit", G.EDIT, Color.White, Modifier.weight(1f), onEdit)
                 if (folder) QuickAction("Open", G.GRID, Color.White, Modifier.weight(1f), onOpenFolder)
@@ -210,7 +217,7 @@ fun HomeMenu(
     onWallpaper: () -> Unit,
 ) {
     AnchoredMenu(anchor = anchor, lifted = null) {
-        Column(Modifier.width(260.dp).glass(26.dp, 0.95f).swallowTaps().padding(vertical = 6.dp)) {
+        Column(Modifier.width(260.dp).bloomMenu(bloomTones()).swallowTaps().padding(vertical = 6.dp)) {
             if (!model.lockLayout) {
                 MenuRow("Edit home screen", G.EDIT) { onEdit() }
                 MenuRow("Add widget", G.WIDGET) { onWidgets() }
@@ -365,4 +372,90 @@ fun WidgetPicker(
             }
         }
     }
+}
+
+/** bitDroid Bloom: menus are solid tonal cards in your own colors (no blue tint). */
+fun Modifier.bloomMenu(t: BloomTones): Modifier {
+    val shape = RoundedCornerShape(30.dp)
+    return this.shadow(18.dp, shape, ambientColor = Color(0x55000000), spotColor = Color(0x66000000))
+        .clip(shape)
+        .background(t.s)
+        .border(1.dp, t.accent.copy(alpha = 0.22f), shape)
+}
+
+/**
+ * Peek: a live look inside the app at the top of its long-press menu. The song it's playing,
+ * or its latest notifications (tap one to open it). Nothing shows for apps with nothing new.
+ */
+@Composable
+private fun PeekSection(pkg: String, t: BloomTones, onClose: () -> Unit) {
+    val context = LocalContext.current
+    val notifs by AppNotifs.byPkg.collectAsState()
+    val list = notifs[pkg].orEmpty()
+    var media by remember(pkg) { mutableStateOf<Pair<NowPlaying, Boolean>?>(null) }
+    LaunchedEffect(pkg) {
+        while (true) {
+            media = mediaNow(context)?.takeIf { it.first.controller.packageName == pkg }
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+    val m = media
+    if (m == null && list.isEmpty()) return
+    Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)) {
+        if (m != null) {
+            val (np, playing) = m
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(t.p).padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x33FFFFFF))) {
+                    np.art?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(np.title, color = t.onP, fontSize = 14.sp, fontWeight = FontWeight.W700, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(np.artist, color = t.onP.copy(alpha = 0.75f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Box(
+                    Modifier.size(40.dp).clip(CircleShape).background(t.accent)
+                        .clickable { runCatching { if (playing) np.controller.transportControls.pause() else np.controller.transportControls.play() } },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    androidx.compose.foundation.Canvas(Modifier.size(14.dp)) {
+                        val c = t.p
+                        if (playing) {
+                            drawRect(c, androidx.compose.ui.geometry.Offset(size.width * 0.1f, 0f), androidx.compose.ui.geometry.Size(size.width * 0.3f, size.height))
+                            drawRect(c, androidx.compose.ui.geometry.Offset(size.width * 0.6f, 0f), androidx.compose.ui.geometry.Size(size.width * 0.3f, size.height))
+                        } else drawPath(androidx.compose.ui.graphics.Path().apply {
+                            moveTo(size.width * 0.15f, 0f); lineTo(size.width, size.height / 2); lineTo(size.width * 0.15f, size.height); close()
+                        }, c)
+                    }
+                }
+            }
+            if (list.isNotEmpty()) Spacer(Modifier.height(6.dp))
+        }
+        list.take(3).forEach { n ->
+            Column(
+                Modifier.fillMaxWidth().padding(vertical = 3.dp).clip(RoundedCornerShape(18.dp))
+                    .background(Color(0x1FFFFFFF))
+                    .clickable { AppNotifs.open(n); onClose() }
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(n.title, color = t.onS, fontSize = 13.5.sp, fontWeight = FontWeight.W700, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(ago(n.time), color = t.onS.copy(alpha = 0.55f), fontSize = 11.sp)
+                }
+                if (n.text.isNotBlank()) Text(n.text, color = t.onS.copy(alpha = 0.8f), fontSize = 12.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        if (list.size > 3) Text("+${list.size - 3} more", color = t.onS.copy(alpha = 0.6f), fontSize = 12.sp,
+            modifier = Modifier.padding(start = 8.dp, top = 2.dp))
+        Spacer(Modifier.height(4.dp))
+    }
+}
+
+private fun ago(t: Long): String {
+    val m = ((System.currentTimeMillis() - t) / 60000).coerceAtLeast(0)
+    return when { m < 1 -> "now"; m < 60 -> "${m}m"; m < 1440 -> "${m / 60}h"; else -> "${m / 1440}d" }
 }

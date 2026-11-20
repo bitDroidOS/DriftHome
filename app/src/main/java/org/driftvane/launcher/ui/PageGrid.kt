@@ -126,7 +126,6 @@ fun HomePage(
                     "bold" -> BoldClock(model, Modifier.align(Alignment.TopStart))
                     "dashboard" -> DashboardTop(model)
                     "stock" -> StockTop(model)
-                    "liquid" -> LiquidTop(model)
                     "frame" -> FrameTop(model) { model.frameHole = it }
                     "split" -> SplitTop(model)
                     else -> StackTop(model)
@@ -462,7 +461,8 @@ private fun HomeGrid(
                             onDragStart = { handler.dragStart(itemKey, Source.OnPage(page), it) },
                             onDragMove = { handler.dragMove(it) },
                             onDragEnd = { handler.dragEnd() },
-                        ),
+                        )
+                        .swipeDownPeek(model.apps[itemKey]?.component?.packageName, !editMode) { handler.menu(itemKey, bounds[0]) },
                     contentAlignment = Alignment.Center,
                 ) {
                     HomeItem(model, itemKey, iconSize, model.showLabels, pressed, onBounds = { bounds[0] = it })

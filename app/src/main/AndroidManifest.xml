@@ -5,11 +5,11 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
+
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
-    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
-
     <application
         android:name=".DriftHomeApp"
         android:label="${appLabel}"
@@ -56,6 +56,46 @@
                 <action android:name="android.service.wallpaper.WallpaperService" />
             </intent-filter>
             <meta-data android:name="android.service.wallpaper" android:resource="@xml/bloom_live_wallpaper" />
+        </service>
+        <service
+            android:name=".TwilightFlowWallpaper"
+            android:exported="true"
+            android:label="@string/flow_twilight"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data android:name="android.service.wallpaper" android:resource="@xml/flow_wallpaper" />
+        </service>
+        <service
+            android:name=".EmberFlowWallpaper"
+            android:exported="true"
+            android:label="@string/flow_ember"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data android:name="android.service.wallpaper" android:resource="@xml/flow_wallpaper" />
+        </service>
+        <service
+            android:name=".OceanFlowWallpaper"
+            android:exported="true"
+            android:label="@string/flow_ocean"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data android:name="android.service.wallpaper" android:resource="@xml/flow_wallpaper" />
+        </service>
+        <service
+            android:name=".MonoFlowWallpaper"
+            android:exported="true"
+            android:label="@string/flow_mono"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data android:name="android.service.wallpaper" android:resource="@xml/flow_wallpaper" />
         </service>
     </application>
 </manifest>

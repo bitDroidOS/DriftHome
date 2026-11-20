@@ -239,7 +239,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     /** Rows the top area takes on the first page, per home style. */
     private val glanceRows: Int
         get() = when (topStyle) {
-            "split", "stack", "liquid" -> 2
+            "split", "stack" -> 2
             "stock" -> 1
             "columns", "morph", "orbit", "bloom" -> 0
             else -> 3
@@ -257,10 +257,10 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
 
     /** Home styles offered in setup (id to name). */
-    val homeStyles = listOf("liquid" to "Liquid")
+    val homeStyles = listOf("bloom" to "Bloom", "morph" to "Morph", "orbit" to "Orbit", "stock" to "Classic")
 
     /** The style Alex recommends (shown first in setup with a "Dev's Fav" tag). */
-    val devFavStyle = "liquid"
+    val devFavStyle = "bloom"
 
     /** Page swipe animation on the home screen ("slide" is the original). */
     var pageAnim by mutableStateOf(prefs.getString("page_anim", PageAnim.SLIDE)!!)
@@ -271,18 +271,18 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     fun applyHomeStyle(style: String, shape: String? = null) {
         if (org.driftvane.launcher.ui.isMorphLike(style)) { applyMorphLike(style, shape ?: iconShape.takeIf { it != "rounded" } ?: "squircle"); return }
         prefs.edit().putString("top_style", style).putBoolean("glance", true)
-            .putString("icon_shape", when (style) { "stock" -> "circle"; "liquid" -> "squircle"; else -> "rounded" }).putString("icon_theme", IconTheme.ORIGINAL)
-            .putString("dock_style", if (style == "liquid") "liquid" else "clear").putBoolean("labels", style == "stock" || style == "liquid").putBoolean("grid_panel", false)
-            .putBoolean("search_pill", true).putInt("columns", 4).putFloat("icon_scale", if (style == "stock" || style == "liquid") 1.12f else 1.26f)
+            .putString("icon_shape", if (style == "stock") "circle" else "rounded").putString("icon_theme", IconTheme.ORIGINAL)
+            .putString("dock_style", "clear").putBoolean("labels", style == "stock").putBoolean("grid_panel", false)
+            .putBoolean("search_pill", true).putInt("columns", 4).putFloat("icon_scale", if (style == "stock") 1.12f else 1.26f)
             .putString("library", LibraryStyle.FOLDERS).apply()
         topStyle = style
         showGlance = true
-        iconShape = when (style) { "stock" -> "circle"; "liquid" -> "squircle"; else -> "rounded" }
-        dockStyle = if (style == "liquid") "liquid" else "clear"
-        showLabels = style == "stock" || style == "liquid"
+        iconShape = if (style == "stock") "circle" else "rounded"
+        dockStyle = "clear"
+        showLabels = style == "stock"
         gridPanel = false
         searchPill = true
-        iconScale = if (style == "stock" || style == "liquid") 1.12f else 1.26f
+        iconScale = if (style == "stock") 1.12f else 1.26f
         libraryStyle = LibraryStyle.FOLDERS
         columns = 4
         iconTheme = IconTheme.ORIGINAL
@@ -324,14 +324,13 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
             }
             pages[0] = pages[0].copy(widgets = tiles + pages[0].widgets)
         } else if (style == "bloom") {
-            // Bloom: a giant clock on top, then music + alarm + battery under it
+            // Bloom 2: a big clock tile on top, then a cookie weather badge and a wide music pill
             ensurePage(0)
             val tiles = buildList {
                 add(WidgetItem(DT_CLOCK, 0, 0, 4, 2))
-                if (iconRows(0) >= 5) {
-                    add(WidgetItem(DT_MUSIC, 0, 2, 2, 2))
-                    add(WidgetItem(DT_DATE, 2, 2, 2, 1))
-                    add(WidgetItem(DT_BATTERY, 2, 3, 2, 1))
+                if (iconRows(0) >= 4) {
+                    add(WidgetItem(-5, 0, 2, 1, 1))
+                    add(WidgetItem(DT_MUSIC, 1, 2, 3, 1))
                 }
             }
             pages[0] = pages[0].copy(widgets = tiles + pages[0].widgets)
@@ -731,6 +730,9 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         val picks = listOfNotNull(
             pkg("com.bitdroid.maps") ?: cat(Intent.CATEGORY_APP_MAPS),
             pkg("com.cashhwocky.bitfocus"),
+            // bitTube: on the home screen by default (by package, or by name if the package changes)
+            pkg("com.cashhwocky.bittube", "com.bitdroid.tube", "com.bitdroid.bittube")
+                ?: apps.values.firstOrNull { it.label.contains("bittube", ignoreCase = true) }?.key,
             pkg("org.lineageos.glimpse") ?: cat(Intent.CATEGORY_APP_GALLERY),
             pkg("org.lineageos.etar", "ws.xsoh.etar") ?: cat(Intent.CATEGORY_APP_CALENDAR),
             pkg("com.android.deskclock", "com.google.android.deskclock"),

@@ -1,5 +1,7 @@
 package org.driftvane.launcher.ui
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.aspectRatio
 import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
@@ -111,11 +113,13 @@ object DriftTiles {
     const val CLOCK = -2
     const val DATE = -3
     const val BATTERY = -4
+    /** bitDroid Bloom 2: a cookie-shaped weather badge. */
+    const val WEATHER = -5
     /** Not a tile: puts the search bar back at the bottom. */
     const val SEARCH = -9
-    val all = listOf(MUSIC to "Now playing", CLOCK to "Clock", DATE to "Date & alarm", BATTERY to "Battery")
+    val all = listOf(MUSIC to "Now playing", CLOCK to "Clock", WEATHER to "Weather", DATE to "Date & alarm", BATTERY to "Battery")
     /** Default size (spanX to spanY). */
-    fun span(id: Int): Pair<Int, Int> = when (id) { MUSIC -> 2 to 2; BATTERY -> 4 to 1; else -> 2 to 1 }
+    fun span(id: Int): Pair<Int, Int> = when (id) { MUSIC -> 2 to 2; BATTERY -> 4 to 1; WEATHER -> 1 to 1; else -> 2 to 1 }
 }
 
 /** Home styles that use the Morph look (uniform tiles, outlined search bar). */
@@ -836,6 +840,47 @@ private fun BloomTile(model: LauncherModel, w: WidgetItem, modifier: Modifier) {
                 Text(SimpleDateFormat("EEEE", Locale.getDefault()).format(Date()), color = tones.onP.copy(alpha = 0.75f),
                     fontSize = if (big) 16.sp else 11.sp, fontWeight = FontWeight.W600)
             }
+            // Bloom 2: your next event in a little chip
+            if (big) {
+                val tick = LocalResumeTick.current
+                var ev by remember { mutableStateOf<BEvent?>(null) }
+                LaunchedEffect(tick) {
+                    if (hasPerm(context, android.Manifest.permission.READ_CALENDAR)) ev = loadNextEvent(context)
+                }
+                ev?.let { e ->
+                    Text(
+                        "${e.title} · ${e.time}", color = tones.p, fontSize = 12.5.sp, fontWeight = FontWeight.W700,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(14.dp).widthIn(max = 180.dp)
+                            .clip(RoundedCornerShape(50)).background(tones.accent).padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
+        DriftTiles.WEATHER -> {
+            val tick = LocalResumeTick.current
+            val allowed = hasPerm(context, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+            var wx by remember { mutableStateOf<BWeather?>(null) }
+            LaunchedEffect(tick, allowed) {
+                if (!allowed) return@LaunchedEffect
+                while (true) { loadWeather(context)?.let { wx = it }; delay(30 * 60 * 1000L) }
+            }
+            Box(
+                modifier.then(pop).then(press),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.fillMaxSize().aspectRatio(1f, true).graphicsLayer { rotationZ = spin * 0.5f }
+                    .clip(CookieShape(9, 0.07f)).background(tones.t)
+                    .clickable(src, indication = null) {
+                        if (!allowed) askPerm(context, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                    })
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    val w0 = wx
+                    Text(if (w0 != null) weatherEmoji(w0.code).first else "⛅", fontSize = 20.sp)
+                    Text(if (w0 != null) "${w0.temp}°" else if (allowed) "…" else "Tap", color = tones.onT,
+                        fontSize = 20.sp, fontWeight = FontWeight.W800)
+                }
+            }
         }
         DriftTiles.DATE -> {
             val alarm = rememberNextAlarm(context)
@@ -869,7 +914,44 @@ private fun BloomTile(model: LauncherModel, w: WidgetItem, modifier: Modifier) {
             LaunchedEffect(playing) {
                 while (playing) { turn.animateTo(turn.value + 360f, tween(8000, easing = LinearEasing)) }
             }
-            Box(
+            if (w.spanY == 1 && w.spanX >= 3) {
+                // Bloom 2: a wide pill. Spinning art, title, a little equalizer, play/pause.
+                val eq by tr.animateFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(900, easing = LinearEasing)), label = "eq")
+                Row(
+                    modifier.then(pop).then(press).clip(RoundedCornerShape(50)).background(tones.s)
+                        .clickable(src, indication = null) {
+                            if (np != null) openPlayer(context, np) else if (!live.access) openMediaAccessSettings(context)
+                        }
+                        .padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.fillMaxHeight(0.8f).aspectRatio(1f).graphicsLayer { rotationZ = turn.value }
+                        .clip(CircleShape).background(tones.t), contentAlignment = Alignment.Center) {
+                        if (art != null) Image(art, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                        else Text("♪", color = tones.onT, fontSize = 22.sp)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(when { np != null -> np.title; !live.access -> "Tap to show music"; else -> "Nothing playing" },
+                            color = tones.onS, fontSize = 15.sp, fontWeight = FontWeight.W800, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (np != null && np.artist.isNotBlank()) Text(np.artist, color = tones.onS.copy(alpha = 0.7f), fontSize = 12.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (playing) Canvas(Modifier.padding(top = 5.dp).width(40.dp).height(12.dp)) {
+                            for (i in 0 until 6) {
+                                val h = size.height * (0.35f + 0.65f * kotlin.math.abs(kotlin.math.sin(eq + i * 0.9f)))
+                                drawRoundRect(tones.accent, Offset(i * size.width / 6f, size.height - h),
+                                    androidx.compose.ui.geometry.Size(size.width / 10f, h), androidx.compose.ui.geometry.CornerRadius(3f))
+                            }
+                        }
+                    }
+                    if (np != null) Box(
+                        Modifier.size(44.dp).bloomBounce {
+                            runCatching { if (playing) ctl?.pause() else ctl?.play() }; tick++
+                        }.clip(CircleShape).background(tones.accent),
+                        contentAlignment = Alignment.Center,
+                    ) { Canvas(Modifier.size(16.dp)) { if (playing) pauseGlyph(tones.p) else playGlyph(tones.p) } }
+                }
+            } else Box(
                 modifier.then(pop).then(press).clip(shape).background(tones.s)
                     .clickable(src, indication = null) {
                         if (np != null) openPlayer(context, np) else if (!live.access) openMediaAccessSettings(context)

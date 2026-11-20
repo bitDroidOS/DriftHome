@@ -3,4 +3,9 @@
     <string name="app_name">bitHome</string>
     <string name="bloom_live_name">Living Bloom</string>
     <string name="bloom_live_desc">bitDroid Midnight Clover, alive: clovers drift, petals open when you unlock, and it breathes while charging</string>
+    <string name="flow_twilight">Twilight Flow</string>
+    <string name="flow_ember">Ember Flow</string>
+    <string name="flow_ocean">Ocean Flow</string>
+    <string name="flow_mono">Mono Flow</string>
+    <string name="flow_desc">bitDroid Flow: soft colors drifting slowly, blooming when you unlock</string>
 </resources>

@@ -89,7 +89,7 @@ private val Muted = Color(0xFFB4ADC2)
 fun SetupFlow(model: LauncherModel) {
     val context = LocalContext.current
     var step by remember { mutableIntStateOf(0) }
-    var homeStyle by remember { mutableStateOf("liquid") }
+    var homeStyle by remember { mutableStateOf(model.devFavStyle) }
     var shape by remember { mutableStateOf(model.iconShape.takeIf { it != "rounded" } ?: "squircle") }
     val last = 2
     BackHandler(enabled = step > 0) { step-- }
@@ -137,11 +137,20 @@ fun SetupFlow(model: LauncherModel) {
                     when (s) {
                         0 -> Welcome()
                         1 -> {
-                            Title("Your home", "Glass widgets, glossy icons, and a dock that floats.")
+                            Title("Pick your home", "You can switch any time from Wallpaper & style.")
                             Spacer(Modifier.height(22.dp))
-                            // bitDroid: one home style only
-                            StyleCard("Liquid", "Frosted glass, glossy icons", true, false,
-                                Modifier.fillMaxWidth().weight(1f), onClick = { homeStyle = "liquid" }) { LiquidPreview() }
+                            Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                StyleCard("Bloom", "Big, round, colorful", homeStyle == "bloom", model.devFavStyle == "bloom",
+                                    Modifier.weight(1f).fillMaxHeight(), onClick = { homeStyle = "bloom" }) { BloomPreview(shape) }
+                                StyleCard("Morph", "Tiles and widgets", homeStyle == "morph", model.devFavStyle == "morph",
+                                    Modifier.weight(1f).fillMaxHeight(), onClick = { homeStyle = "morph" }) { MorphPreview(shape, accent) }
+                                StyleCard("Orbit", "Apps in a ring", homeStyle == "orbit", model.devFavStyle == "orbit",
+                                    Modifier.weight(1f).fillMaxHeight(), onClick = { homeStyle = "orbit" }) { OrbitPreview(shape) }
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            // bitDroid: Classic, the plain stock look (no Material You)
+                            StyleCard("Classic", "Plain stock look", homeStyle == "stock", false,
+                                Modifier.fillMaxWidth().height(96.dp), onClick = { homeStyle = "stock" }) { ClassicPreview() }
                         }
                         else -> {
                             Title("Make it yours", "Here's where everything lives.")
@@ -172,7 +181,7 @@ fun SetupFlow(model: LauncherModel) {
                                         )
                                     }
                                 }
-                                TipCard("Change your look", "Hold an empty spot on the home screen, then Wallpaper & style. Change your wallpaper, icon shape and dock there.")
+                                TipCard("Change your look", "Hold an empty spot on the home screen, then Wallpaper & style. Switch between Bloom, Morph and Orbit, or change your wallpaper and icon shape.")
                                 TipCard("Move or remove anything", "Hold a tile, a widget or the search bar to drag it around or drop it on Remove.")
                                 TipCard("Your apps", "Swipe up for all your apps. Swipe down for notifications.")
                                 ActionCard("${romName()} Enhancements", "Lock screen, glance bar, Quick Settings and more. It's the first thing in Settings.") {
@@ -479,33 +488,5 @@ private fun ClassicPreview() {
             topLeft = androidx.compose.ui.geometry.Offset(size.width * 0.12f, size.height * 0.68f),
             size = androidx.compose.ui.geometry.Size(size.width * 0.76f, size.height * 0.16f),
             cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height * 0.08f))
-    }
-}
-
-
-/** bitDroid: a tiny picture of the Liquid home style (colorful light behind frosted glass). */
-@Composable
-private fun LiquidPreview() {
-    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
-        drawRect(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color(0xFF1B2A55), androidx.compose.ui.graphics.Color(0xFF0E1630))))
-        fun glow(x: Float, y: Float, r: Float, c: Long) = drawCircle(
-            androidx.compose.ui.graphics.Brush.radialGradient(listOf(androidx.compose.ui.graphics.Color(c), androidx.compose.ui.graphics.Color.Transparent),
-                center = androidx.compose.ui.geometry.Offset(x, y), radius = r), r, androidx.compose.ui.geometry.Offset(x, y))
-        glow(size.width * 0.2f, size.height * 0.2f, size.width * 0.35f, 0xCCFF9F6E)
-        glow(size.width * 0.85f, size.height * 0.4f, size.width * 0.35f, 0xCC6E7BFF)
-        glow(size.width * 0.5f, size.height * 1.0f, size.width * 0.4f, 0xCC29C5B5)
-        val glass = androidx.compose.ui.graphics.Color(0x52FFFFFF)
-        val rim = androidx.compose.ui.graphics.Color(0x80FFFFFF)
-        val cr = androidx.compose.ui.geometry.CornerRadius(size.height * 0.14f)
-        for (i in 0..1) {
-            val tl = androidx.compose.ui.geometry.Offset(size.width * (0.08f + 0.44f * i), size.height * 0.12f)
-            val sz = androidx.compose.ui.geometry.Size(size.width * 0.4f, size.height * 0.46f)
-            drawRoundRect(glass, tl, sz, cr)
-            drawRoundRect(rim, tl, sz, cr, style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
-        }
-        val tl = androidx.compose.ui.geometry.Offset(size.width * 0.08f, size.height * 0.68f)
-        val sz = androidx.compose.ui.geometry.Size(size.width * 0.84f, size.height * 0.22f)
-        drawRoundRect(glass, tl, sz, androidx.compose.ui.geometry.CornerRadius(size.height * 0.11f))
-        drawRoundRect(rim, tl, sz, androidx.compose.ui.geometry.CornerRadius(size.height * 0.11f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
     }
 }

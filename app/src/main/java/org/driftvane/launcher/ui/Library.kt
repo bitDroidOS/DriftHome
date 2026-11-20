@@ -376,7 +376,41 @@ fun AppDrawer(
     onSearch: () -> Unit,
 ) {
     if (model.libraryStyle == LibraryStyle.BENTO) {
-        BentoLibrary(model, handler, onClose, onOpenCategory, onSearch)
+        // bitDroid Bloom 2: Categories / A–Z / Recent under the Material You slider tab bar
+        var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+        Box(Modifier.fillMaxSize()) {
+            androidx.compose.animation.Crossfade(tab, label = "libtab") { tb ->
+                when (tb) {
+                    0 -> BentoLibrary(model, handler, onClose, onOpenCategory, onSearch)
+                    else -> {
+                        val list = remember(tb, model.apps.size, model.hiddenApps.size, model.iconTheme) {
+                            val v = model.visibleApps()
+                            if (tb == 1) v.sortedBy { it.label.lowercase() }
+                            else v.sortedByDescending { model.launches(it.key) }.take(16)
+                        }
+                        LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+                            item {
+                                Box(Modifier.fillMaxWidth().clickable { onClose() }.padding(vertical = 14.dp), contentAlignment = Alignment.Center) {
+                                    Box(Modifier.width(44.dp).height(5.dp).background(Color(0x66FFFFFF), RoundedCornerShape(50)))
+                                }
+                            }
+                            items(list.chunked(4), key = { "t$tb" + it.first().key }) { row ->
+                                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                                    row.forEach { app -> Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { LibIcon(app, 54f, true, handler, model) } }
+                                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                                }
+                            }
+                            item { Spacer(Modifier.height(110.dp)) }
+                        }
+                    }
+                }
+            }
+            BloomTabBar(
+                tabs = listOf(BloomTab(G.GRID, "Categories"), BloomTab(G.LIBRARY, "A–Z"), BloomTab(G.SPARK, "Recent")),
+                selected = tab, onSelect = { tab = it }, onSearch = onSearch,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
         return
     }
     val all = remember(model.apps.size, model.hiddenApps.size, model.iconTheme, model.accentIndex) { model.visibleApps().sortedBy { it.label.lowercase() } }
@@ -438,12 +472,14 @@ private fun BentoLibrary(
     val groups = remember(model.apps.size, model.apps.keys.hashCode(), model.hiddenApps.size, model.iconTheme) {
         model.categories().sortedByDescending { (_, apps) -> apps.sumOf { model.launches(it.key) } * 1000 + apps.size }
     }
+    // Bloom 2: every category gets its own soft tone
     val palette = listOf(
-        tones.p to tones.onP, tones.s to tones.onS, tones.t to tones.onT, tones.accent to tones.p,
+        Color(0xFF3B2D5E) to Color(0xFFEADDFF), Color(0xFF5A2F45) to Color(0xFFFFD8E4), Color(0xFF25404A) to Color(0xFFC8ECFF),
+        Color(0xFF3F3A2A) to Color(0xFFFDE7B8), Color(0xFF2D3B2D) to Color(0xFFCDECCD), Color(0xFF2B3354) to Color(0xFFD6E0FF),
     )
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 14.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 60.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item(key = "grab") {
@@ -452,36 +488,11 @@ private fun BentoLibrary(
                 contentAlignment = Alignment.Center,
             ) { Box(Modifier.width(44.dp).height(5.dp).background(Color(0x66FFFFFF), RoundedCornerShape(50))) }
         }
-        item(key = "search") {
-            Row(
-                Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(50)).background(tones.p)
-                    .clickable { onSearch() }.padding(horizontal = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(Modifier.size(38.dp).clip(CircleShape).background(tones.accent), contentAlignment = Alignment.Center) {
-                    androidx.compose.foundation.Canvas(Modifier.size(16.dp)) {
-                        val r = size.minDimension * 0.33f
-                        val c = androidx.compose.ui.geometry.Offset(size.width * 0.42f, size.height * 0.42f)
-                        drawCircle(tones.p, r, c, style = androidx.compose.ui.graphics.drawscope.Stroke(size.minDimension * 0.15f))
-                        drawLine(tones.p, c + androidx.compose.ui.geometry.Offset(r * 0.72f, r * 0.72f),
-                            androidx.compose.ui.geometry.Offset(size.width * 0.92f, size.height * 0.92f),
-                            size.minDimension * 0.16f, androidx.compose.ui.graphics.StrokeCap.Round)
-                    }
-                }
-                Spacer(Modifier.width(12.dp))
-                Text("Search apps", color = tones.onP, fontSize = 16.sp, fontWeight = FontWeight.W600)
-            }
-        }
-        groups.firstOrNull()?.let { (title, apps) ->
-            item(key = "B$title") {
-                BentoTile(title, apps, model, handler, palette[0], big = true, Modifier.fillMaxWidth(), 0) { onOpenCategory(title) }
-            }
-        }
-        groups.drop(1).chunked(2).forEachIndexed { row, pair ->
+        groups.chunked(2).forEachIndexed { row, pair ->
             item(key = "B" + pair.first().first) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     pair.forEachIndexed { i, (title, apps) ->
-                        val idx = 1 + row * 2 + i
+                        val idx = row * 2 + i
                         BentoTile(title, apps, model, handler, palette[idx % palette.size], big = false,
                             Modifier.weight(1f), idx) { onOpenCategory(title) }
                     }
@@ -519,18 +530,17 @@ private fun BentoTile(
     val pressed by src.collectIsPressedAsState()
     val sq by androidx.compose.animation.core.animateFloatAsState(if (pressed) 0.96f else 1f,
         androidx.compose.animation.core.spring(0.45f, 600f), label = "bt")
-    val shape = tileShape(model.iconShape)
+    val shape = RoundedCornerShape(40.dp)
     Column(
-        modifier
-            .graphicsLayer {
-                val e = enter.value
-                scaleX = 0.85f + 0.15f * e; scaleY = 0.85f + 0.15f * e
-                alpha = e.coerceIn(0f, 1f)
-                translationY = (1f - e) * 30f
-            }
-            .clip(shape).background(bg)
-            .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
+        modifier.graphicsLayer {
+            val e = enter.value
+            scaleX = 0.85f + 0.15f * e; scaleY = 0.85f + 0.15f * e
+            alpha = e.coerceIn(0f, 1f)
+            translationY = (1f - e) * 30f
+        },
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+    Column(Modifier.fillMaxWidth().clip(shape).background(bg).padding(12.dp)) {
         val iconSize = if (big) 52f else 48f
         (0 until slots).chunked(cols).forEach { r ->
             Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -550,13 +560,8 @@ private fun BentoTile(
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, color = fg, fontSize = if (big) 17.sp else 14.sp, fontWeight = FontWeight.W700,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            Text("${apps.size}", color = fg, fontSize = 12.sp, fontWeight = FontWeight.W700,
-                modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.18f))
-                    .padding(horizontal = 8.dp, vertical = 2.dp))
-        }
+    }
+        Spacer(Modifier.height(7.dp))
+        Text(title, color = fg, fontSize = 14.sp, fontWeight = FontWeight.W700, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
