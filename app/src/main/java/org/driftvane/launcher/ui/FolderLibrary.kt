@@ -44,7 +44,7 @@ import org.driftvane.launcher.LauncherModel
 
 private val FolderBg = Color(0xFF1B1F27)
 private val TabBg = Color(0xFF1B1F27)
-private val TabOn = Color(0xFF3A404C)
+private val TabOn = Color(0x47FFFFFF)
 private val Hint = Color(0xFFB8BEC9)
 
 /**
@@ -69,7 +69,7 @@ fun FolderLibrary(
             // top: All / Categories, and a menu button for Home settings
             Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp)) {
                 Row(
-                    Modifier.align(Alignment.Center).clip(RoundedCornerShape(50)).background(TabBg).padding(3.dp)
+                    Modifier.align(Alignment.Center).liquidGlass(RoundedCornerShape(50), dark = true).padding(3.dp)
                 ) {
                     TabChip("All", tab == 0) { tab = 0 }
                     TabChip("Categories", tab == 1) { tab = 1 }
@@ -119,8 +119,7 @@ fun FolderLibrary(
         Row(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
-                .height(52.dp).clip(RoundedCornerShape(26.dp)).background(TabBg)
-                .border(1.dp, Color.White.copy(alpha = 0.22f), RoundedCornerShape(26.dp))
+                .height(52.dp).liquidGlass(RoundedCornerShape(26.dp), dark = true)
                 .clickable { onSearch() }.padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -155,7 +154,7 @@ private fun FolderTile(
     val rest = if (apps.size <= 4) emptyList() else apps.drop(3)
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Column(
-            Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(26.dp)).background(FolderBg)
+            Modifier.fillMaxWidth().aspectRatio(1f).liquidGlass(RoundedCornerShape(30.dp)).clip(RoundedCornerShape(30.dp))
                 .clickable(remember { MutableInteractionSource() }, indication = null) { onOpen() }
                 .padding(10.dp),
         ) {

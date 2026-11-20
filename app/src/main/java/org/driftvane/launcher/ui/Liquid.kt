@@ -1,5 +1,11 @@
 package org.driftvane.launcher.ui
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.runtime.produceState
 import android.Manifest
 import android.app.Activity
 import android.app.WallpaperManager
@@ -196,15 +202,138 @@ fun Modifier.liquidGloss(shape: Shape): Modifier = drawWithContent {
 
 private val CardShape = RoundedCornerShape(28.dp)
 
-/** Page one of the Liquid style: a glass weather card and a glass calendar card. */
+/**
+ * Page one of the bitDroid home: a big thin clock and the date on the left, the weather on the
+ * right, and under them a glass smart stack (what's playing, or your next event).
+ */
 @Composable
 fun LiquidTop(model: LauncherModel) {
-    Row(
-        Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    val context = LocalContext.current
+    val tick = LocalResumeTick.current
+    val now by produceState(System.currentTimeMillis(), tick) {
+        while (true) { value = System.currentTimeMillis(); delay(1000L * (60 - (value / 1000 % 60)).coerceAtLeast(1)) }
+    }
+    val time = remember(now) { java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(now)).replace(Regex("\\s?[AaPp]\\.?[Mm]\\.?$"), "") }
+    val date = remember(now) { java.text.SimpleDateFormat("EEEE, MMM d", Locale.getDefault()).format(java.util.Date(now)) }
+    Column(Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Column(Modifier.weight(1f)) {
+                Text(time, color = Color.White, fontSize = 74.sp, fontWeight = FontWeight.ExtraLight,
+                    letterSpacing = (-3).sp, lineHeight = 74.sp, maxLines = 1)
+                Text(date, color = Color.White.copy(alpha = 0.92f), fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            }
+            LiquidWeatherMini()
+        }
+        Spacer(Modifier.height(16.dp))
+        LiquidStack(Modifier.fillMaxWidth().weight(1f))
+    }
+}
+
+@Composable
+private fun LiquidWeatherMini() {
+    val context = LocalContext.current
+    val tick = LocalResumeTick.current
+    var w by remember { mutableStateOf<Weather?>(null) }
+    val allowed = has(context, Manifest.permission.ACCESS_COARSE_LOCATION)
+    LaunchedEffect(tick, allowed) {
+        if (!allowed) return@LaunchedEffect
+        while (true) { fetchWeather(context)?.let { w = it }; delay(30 * 60 * 1000L) }
+    }
+    Column(
+        Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+            if (!allowed) ask(context, Manifest.permission.ACCESS_COARSE_LOCATION)
+        }.padding(bottom = 4.dp),
+        horizontalAlignment = Alignment.End,
     ) {
-        LiquidWeather(Modifier.weight(1f).fillMaxHeight())
-        LiquidCalendar(Modifier.weight(1f).fillMaxHeight())
+        val cur = w
+        if (cur == null) {
+            Text("⛅", fontSize = 26.sp)
+            Text(if (allowed) "Loading…" else "Tap for weather", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+        } else {
+            val (emoji, text) = weatherText(cur.code)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(emoji, fontSize = 20.sp)
+                Spacer(Modifier.width(4.dp))
+                Text("${cur.temp}°", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Light)
+            }
+            Text("$text · ${cur.city}", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 150.dp))
+        }
+    }
+}
+
+/** The glass smart stack: the song that's playing (with controls), otherwise your next event. */
+@Composable
+private fun LiquidStack(modifier: Modifier) {
+    val context = LocalContext.current
+    val tick = LocalResumeTick.current
+    val media by produceState<Pair<NowPlaying, Boolean>?>(null, tick) { while (true) { value = mediaNow(context); delay(1500) } }
+    val allowed = has(context, Manifest.permission.READ_CALENDAR)
+    var ev by remember { mutableStateOf<NextEvent?>(null) }
+    LaunchedEffect(tick, allowed) { if (allowed) ev = nextEvent(context) }
+    val shape = RoundedCornerShape(26.dp)
+    Box(modifier.heightIn(max = 96.dp).liquidGlass(shape), contentAlignment = Alignment.CenterStart) {
+        androidx.compose.animation.Crossfade(media?.first?.title, label = "stack") { title ->
+            val m = media
+            if (title != null && m != null) {
+                val (np, playing) = m
+                Row(
+                    Modifier.fillMaxSize()
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                            runCatching { np.controller.sessionActivity?.send() }
+                        }
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(60.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x33FFFFFF))) {
+                        np.art?.let { androidx.compose.foundation.Image(it.asImageBitmap(), null, Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop) }
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(np.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(np.artist, color = Color.White.copy(alpha = 0.72f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Box(
+                        Modifier.size(42.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.95f))
+                            .clickable { runCatching { if (playing) np.controller.transportControls.pause() else np.controller.transportControls.play() } },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.foundation.Canvas(Modifier.size(16.dp)) {
+                            if (playing) {
+                                drawRoundRect(Color(0xFF111114), Offset(size.width * 0.12f, 0f), Size(size.width * 0.28f, size.height), androidx.compose.ui.geometry.CornerRadius(3f))
+                                drawRoundRect(Color(0xFF111114), Offset(size.width * 0.6f, 0f), Size(size.width * 0.28f, size.height), androidx.compose.ui.geometry.CornerRadius(3f))
+                            } else {
+                                drawPath(Path().apply { moveTo(size.width * 0.15f, 0f); lineTo(size.width, size.height / 2); lineTo(size.width * 0.15f, size.height); close() }, Color(0xFF111114))
+                            }
+                        }
+                    }
+                }
+            } else {
+                val e = ev
+                Row(
+                    Modifier.fillMaxSize()
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                            if (!allowed) ask(context, Manifest.permission.READ_CALENDAR)
+                            else runCatching {
+                                context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW)
+                                    .setData(CalendarContract.CONTENT_URI.buildUpon().appendPath("time").build())
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                        }
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.width(4.dp).height(40.dp).liquidBar())
+                    Column(Modifier.padding(start = 12.dp)) {
+                        Text(e?.title ?: if (allowed) "Nothing coming up" else "Your next event",
+                            color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(e?.time ?: if (allowed) "Enjoy the free time" else "Tap to show it here",
+                            color = Color.White.copy(alpha = 0.75f), fontSize = 13.sp, maxLines = 1)
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -239,7 +239,8 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     /** Rows the top area takes on the first page, per home style. */
     private val glanceRows: Int
         get() = when (topStyle) {
-            "split", "stack", "liquid" -> 2
+            "split", "stack" -> 2
+            "liquid" -> 3
             "stock" -> 1
             "columns", "morph", "orbit", "bloom" -> 0
             else -> 3
@@ -257,7 +258,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         private set
 
     /** Home styles offered in setup (id to name). */
-    val homeStyles = listOf("liquid" to "Liquid", "bloom" to "Bloom", "morph" to "Morph", "orbit" to "Orbit", "stock" to "Classic")
+    val homeStyles = listOf("liquid" to "Liquid")
 
     /** The style Alex recommends (shown first in setup with a "Dev's Fav" tag). */
     val devFavStyle = "liquid"

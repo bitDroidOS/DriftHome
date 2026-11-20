@@ -89,7 +89,7 @@ private val Muted = Color(0xFFB4ADC2)
 fun SetupFlow(model: LauncherModel) {
     val context = LocalContext.current
     var step by remember { mutableIntStateOf(0) }
-    var homeStyle by remember { mutableStateOf(model.devFavStyle) }
+    var homeStyle by remember { mutableStateOf("liquid") }
     var shape by remember { mutableStateOf(model.iconShape.takeIf { it != "rounded" } ?: "squircle") }
     val last = 2
     BackHandler(enabled = step > 0) { step-- }
@@ -137,24 +137,11 @@ fun SetupFlow(model: LauncherModel) {
                     when (s) {
                         0 -> Welcome()
                         1 -> {
-                            Title("Pick your home", "You can switch any time from Wallpaper & style.")
+                            Title("Your home", "Glass widgets, glossy icons, and a dock that floats.")
                             Spacer(Modifier.height(22.dp))
-                            Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                StyleCard("Bloom", "Big, round, colorful", homeStyle == "bloom", model.devFavStyle == "bloom",
-                                    Modifier.weight(1f).fillMaxHeight(), onClick = { homeStyle = "bloom" }) { BloomPreview(shape) }
-                                StyleCard("Morph", "Tiles and widgets", homeStyle == "morph", model.devFavStyle == "morph",
-                                    Modifier.weight(1f).fillMaxHeight(), onClick = { homeStyle = "morph" }) { MorphPreview(shape, accent) }
-                                StyleCard("Orbit", "Apps in a ring", homeStyle == "orbit", model.devFavStyle == "orbit",
-                                    Modifier.weight(1f).fillMaxHeight(), onClick = { homeStyle = "orbit" }) { OrbitPreview(shape) }
-                            }
-                            Spacer(Modifier.height(10.dp))
-                            // bitDroid: Liquid, the glass look (the default)
-                            StyleCard("Liquid", "Frosted glass, glossy icons", homeStyle == "liquid", model.devFavStyle == "liquid",
-                                Modifier.fillMaxWidth().height(96.dp), onClick = { homeStyle = "liquid" }) { LiquidPreview() }
-                            Spacer(Modifier.height(10.dp))
-                            // bitDroid: Classic, the plain stock look (no Material You)
-                            StyleCard("Classic", "Plain stock look", homeStyle == "stock", false,
-                                Modifier.fillMaxWidth().height(96.dp), onClick = { homeStyle = "stock" }) { ClassicPreview() }
+                            // bitDroid: one home style only
+                            StyleCard("Liquid", "Frosted glass, glossy icons", true, false,
+                                Modifier.fillMaxWidth().weight(1f), onClick = { homeStyle = "liquid" }) { LiquidPreview() }
                         }
                         else -> {
                             Title("Make it yours", "Here's where everything lives.")
@@ -185,7 +172,7 @@ fun SetupFlow(model: LauncherModel) {
                                         )
                                     }
                                 }
-                                TipCard("Change your look", "Hold an empty spot on the home screen, then Wallpaper & style. Switch between Bloom, Morph and Orbit, or change your wallpaper and icon shape.")
+                                TipCard("Change your look", "Hold an empty spot on the home screen, then Wallpaper & style. Change your wallpaper, icon shape and dock there.")
                                 TipCard("Move or remove anything", "Hold a tile, a widget or the search bar to drag it around or drop it on Remove.")
                                 TipCard("Your apps", "Swipe up for all your apps. Swipe down for notifications.")
                                 ActionCard("${romName()} Enhancements", "Lock screen, glance bar, Quick Settings and more. It's the first thing in Settings.") {
