@@ -34,11 +34,17 @@ internal fun weatherEmoji(code: Int): Pair<String, String> = when (code) {
 internal suspend fun loadWeather(context: Context): BWeather? = withContext(Dispatchers.IO) {
     runCatching {
         val lm = context.getSystemService(LocationManager::class.java)
-        val loc = listOf(LocationManager.FUSED_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)
-            .firstNotNullOfOrNull { p -> runCatching { lm.getLastKnownLocation(p) }.getOrNull() } ?: return@runCatching null
+        // where are we: the last known spot, else ask for a fresh one (a new phone has none yet),
+        // else a rough guess from the internet connection, so the tile never sits on "…" forever
+        val last = listOf(LocationManager.FUSED_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)
+            .firstNotNullOfOrNull { p -> runCatching { lm.getLastKnownLocation(p) }.getOrNull() }
+        val loc: Pair<Double, Double> = last?.let { it.latitude to it.longitude }
+            ?: freshLocation(lm)?.let { it.latitude to it.longitude }
+            ?: ipLocation()
+            ?: return@runCatching null
         val f = Locale.getDefault().country in setOf("US", "LR", "MM", "BS", "BZ", "KY", "PW")
         val url = java.net.URL(
-            "https://api.open-meteo.com/v1/forecast?latitude=%.3f&longitude=%.3f".format(Locale.US, loc.latitude, loc.longitude) +
+            "https://api.open-meteo.com/v1/forecast?latitude=%.3f&longitude=%.3f".format(Locale.US, loc.first, loc.second) +
                 "&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto" +
                 (if (f) "&temperature_unit=fahrenheit" else "")
         )
@@ -48,7 +54,7 @@ internal suspend fun loadWeather(context: Context): BWeather? = withContext(Disp
         val cur = js.getJSONObject("current"); val day = js.getJSONObject("daily")
         val city = runCatching {
             @Suppress("DEPRECATION")
-            android.location.Geocoder(context).getFromLocation(loc.latitude, loc.longitude, 1)
+            android.location.Geocoder(context).getFromLocation(loc.first, loc.second, 1)
                 ?.firstOrNull()?.let { it.locality ?: it.subAdminArea ?: it.adminArea }
         }.getOrNull() ?: "My location"
         BWeather(
@@ -81,3 +87,29 @@ internal suspend fun loadNextEvent(context: Context): BEvent? = withContext(Disp
         }
     }.getOrNull()
 }
+
+@android.annotation.SuppressLint("MissingPermission")
+private suspend fun freshLocation(lm: LocationManager): android.location.Location? =
+    kotlinx.coroutines.withTimeoutOrNull(12_000) {
+        for (p in listOf(LocationManager.FUSED_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)) {
+            if (runCatching { !lm.isProviderEnabled(p) }.getOrDefault(true)) continue
+            val l = kotlinx.coroutines.suspendCancellableCoroutine<android.location.Location?> { cont ->
+                val cancel = android.os.CancellationSignal()
+                cont.invokeOnCancellation { cancel.cancel() }
+                runCatching {
+                    lm.getCurrentLocation(p, cancel, { it.run() }) { loc -> if (cont.isActive) cont.resumeWith(Result.success(loc)) }
+                }.onFailure { if (cont.isActive) cont.resumeWith(Result.success(null)) }
+            }
+            if (l != null) return@withTimeoutOrNull l
+        }
+        null
+    }
+
+/** A rough city-level location from the internet connection (no GPS needed). */
+private fun ipLocation(): Pair<Double, Double>? = runCatching {
+    val con = java.net.URL("https://ipwho.is/").openConnection() as java.net.HttpURLConnection
+    con.connectTimeout = 6000; con.readTimeout = 6000
+    val js = org.json.JSONObject(con.inputStream.bufferedReader().readText())
+    if (!js.optBoolean("success", true)) return null
+    js.getDouble("latitude") to js.getDouble("longitude")
+}.getOrNull()

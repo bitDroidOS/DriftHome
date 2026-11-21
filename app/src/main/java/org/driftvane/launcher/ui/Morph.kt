@@ -863,7 +863,12 @@ private fun BloomTile(model: LauncherModel, w: WidgetItem, modifier: Modifier) {
             var wx by remember { mutableStateOf<BWeather?>(null) }
             LaunchedEffect(tick, allowed) {
                 if (!allowed) return@LaunchedEffect
-                while (true) { loadWeather(context)?.let { wx = it }; delay(30 * 60 * 1000L) }
+                // every 30 minutes; if it couldn't get the weather, try again in 2 minutes
+                while (true) {
+                    val w = loadWeather(context)
+                    if (w != null) wx = w
+                    delay(if (w != null) 30 * 60 * 1000L else 2 * 60 * 1000L)
+                }
             }
             Box(
                 modifier.then(pop).then(press),
@@ -873,6 +878,7 @@ private fun BloomTile(model: LauncherModel, w: WidgetItem, modifier: Modifier) {
                     .clip(CookieShape(9, 0.07f)).background(tones.t)
                     .clickable(src, indication = null) {
                         if (!allowed) askPerm(context, android.Manifest.permission.ACCESS_COARSE_LOCATION)
+                        else openWeatherApp(context)
                     })
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     val w0 = wx
@@ -1027,4 +1033,25 @@ private fun Modifier.bloomBounce(onClick: () -> Unit): Modifier = composed {
     val pressed by src.collectIsPressedAsState()
     val s by animateFloatAsState(if (pressed) 0.82f else 1f, spring(0.4f, 600f), label = "bb")
     this.graphicsLayer { scaleX = s; scaleY = s }.clickable(src, indication = null, onClick = onClick)
+}
+
+
+/** bitDroid: the weather tile opens bitPrecip (or whatever weather app there is). */
+internal fun openWeatherApp(context: android.content.Context) {
+    val pm = context.packageManager
+    val launch = pm.queryIntentActivities(
+        android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_LAUNCHER), 0)
+        .firstOrNull {
+            val label = it.loadLabel(pm).toString().lowercase()
+            label.contains("bitprecip") || it.activityInfo.packageName.contains("precip", true)
+        } ?: pm.queryIntentActivities(
+            android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_LAUNCHER), 0)
+            .firstOrNull { it.loadLabel(pm).toString().contains("weather", true) }
+    launch ?: return
+    runCatching {
+        context.startActivity(android.content.Intent(android.content.Intent.ACTION_MAIN)
+            .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+            .setClassName(launch.activityInfo.packageName, launch.activityInfo.name)
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
 }
