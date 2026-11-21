@@ -713,12 +713,14 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
     }
 
     private fun defaultDock(): List<String> = listOfNotNull(
+        // bitDroid dock: bitDialer, bitMessages, bitLMP, bitClips (each falls back to the usual app)
         resolveDefault(Intent(Intent.ACTION_DIAL)),
         resolveDefault(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:"))),
-        // DriftVaneOS: AlexLMP instead of the browser (the browser if AlexLMP isn't installed)
-        apps.values.firstOrNull { it.label.contains("alexlmp", ignoreCase = true) }?.key
+        apps.values.firstOrNull { it.label.contains("bitlmp", ignoreCase = true) || it.label.contains("alexlmp", ignoreCase = true) }?.key
             ?: resolveDefault(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))),
-        resolveDefault(Intent(MediaStore.ACTION_IMAGE_CAPTURE)),
+        apps.values.firstOrNull { it.component.packageName in setOf("com.cashhwocky.bitclips", "com.bitdroid.clips", "com.bitdroid.bitclips") }?.key
+            ?: apps.values.firstOrNull { it.label.contains("bitclips", ignoreCase = true) }?.key
+            ?: resolveDefault(Intent(MediaStore.ACTION_IMAGE_CAPTURE)),
     ).distinct()
 
     /** The apps a fresh home screen starts with; everything else lives in the App Library. */
@@ -726,16 +728,21 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
         fun cat(c: String) = resolveDefault(Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, c))
         fun pkg(vararg names: String) = names.firstNotNullOfOrNull { n -> apps.values.firstOrNull { it.component.packageName == n }?.key }
         // bitDroid: a fresh home screen starts with all the bit-themed apps (the dock stays as is:
-        // phone, messages, AlexLMP, camera). Each falls back to whatever app handles that job.
+        // bitDialer, bitMessages, bitLMP, bitClips). Each falls back to whatever app handles that job.
         val picks = listOfNotNull(
             pkg("com.bitdroid.maps") ?: cat(Intent.CATEGORY_APP_MAPS),
             pkg("com.cashhwocky.bitfocus"),
             // bitTube: on the home screen by default (by package, or by name if the package changes)
             pkg("com.cashhwocky.bittube", "com.bitdroid.tube", "com.bitdroid.bittube")
                 ?: apps.values.firstOrNull { it.label.contains("bittube", ignoreCase = true) }?.key,
+            // bitPrecip: the bitDroid weather app, on home by default
+            pkg("com.cashhwocky.bitprecip", "com.bitdroid.precip", "com.bitdroid.bitprecip")
+                ?: apps.values.firstOrNull { it.label.contains("bitprecip", ignoreCase = true) }?.key,
             // bitClips: right next to bitTube
             pkg("com.cashhwocky.bitclips", "com.bitdroid.clips", "com.bitdroid.bitclips")
                 ?: apps.values.firstOrNull { it.label.contains("bitclips", ignoreCase = true) }?.key,
+            // the camera moved out of the dock (bitClips took its spot), so it lives on home
+            resolveDefault(Intent(MediaStore.ACTION_IMAGE_CAPTURE)),
             pkg("org.lineageos.glimpse") ?: cat(Intent.CATEGORY_APP_GALLERY),
             pkg("org.lineageos.etar", "ws.xsoh.etar") ?: cat(Intent.CATEGORY_APP_CALENDAR),
             pkg("com.android.deskclock", "com.google.android.deskclock"),
@@ -1162,7 +1169,7 @@ class LauncherModel(private val context: Context, private val scope: CoroutineSc
                 has("telegram", "hachigram", "whatsapp", "discord", "snapchat", "instagram", "messenger",
                     "signal", "twitter", "reddit", "tiktok", "messag", "mms") -> "Social"
             e.category == ApplicationInfo.CATEGORY_AUDIO ||
-                has("music", "spotify", "alexlmp", "soundcloud", "podcast", "audio", "radio") -> "Music"
+                has("music", "spotify", "alexlmp", "bitlmp", "soundcloud", "podcast", "audio", "radio") -> "Music"
             e.category == ApplicationInfo.CATEGORY_VIDEO || e.category == ApplicationInfo.CATEGORY_IMAGE ||
                 has("youtube", "netflix", "video", "camera", "photo", "gallery", "twitch", "glimpse") -> "Photo & Video"
             e.category == ApplicationInfo.CATEGORY_GAME || has("game", "roblox", "minecraft") -> "Games"
